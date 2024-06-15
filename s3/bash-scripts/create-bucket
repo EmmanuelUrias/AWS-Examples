@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "There needs to be a bucket name eg. ./bucket_script.sh my-bucket-name"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+# Check for region
+if [ -z "$2" ]; then
+    echo "There needs to be a region name eg. ./bucket_script.sh my-bucket-name us-east-1"
+    exit 1
+fi
+
+REGION=$2
+
+echo "Creating bucket: $BUCKET_NAME in region: $REGION"
+
+# Determine if we need to include the --create-bucket-configuration option, for the output you can change to text or table if needed
+if [ "$REGION" == "us-east-1" ]; then
+    echo "Creating bucket in region us-east-1"
+    if ! aws s3api create-bucket \
+    --bucket "$BUCKET_NAME" \
+    --region "$REGION"; then
+        echo "Failed to create bucket: $BUCKET_NAME"
+        exit 1
+    fi
+else
+    echo "Creating bucket in region $REGION"
+    if ! aws s3api create-bucket \
+    --bucket "$BUCKET_NAME" \
+    --create-bucket-configuration="LocationConstraint=$REGION" \
+    --output json; then
+        echo "Failed to create bucket: $BUCKET_NAME"
+        exit 1
+    fi
+fi
+
+echo "Bucket created successfully: $BUCKET_NAME"
