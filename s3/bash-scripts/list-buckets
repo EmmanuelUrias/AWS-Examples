@@ -1,0 +1,7 @@
+#! /usr/bin/env bash
+
+echo "Listing buckets"
+
+aws s3api list-buckets | jq -r '.Buckets | sort_by(.CreationDate) | reverse | .[] | .Name'
+# aws s3api list-buckets | jq -r '.Buckets | sort_by(.CreationDate) | reverse | .[0:5] | .[] | .Name'
+# ^ The line above is to filter and grab only the 5 newest buckets

@@ -1,0 +1,18 @@
+#! /usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "There needs to be a bucket name eg. ./bucket_script.sh my-bucket-name"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+echo "Listing objects in bucket: $BUCKET_NAME"
+
+# Determine if we need to include the --create-bucket-configuration option, for the output you can change to text or table if needed
+if ! aws s3api list-objects-v2 \
+    --bucket "$BUCKET_NAME"; then
+    echo "Failed to list objects: $BUCKET_NAME"
+    exit 1
+fi
