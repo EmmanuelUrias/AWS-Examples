@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "There needs to be a bucket name eg. ./bucket_script.sh my-bucket-name"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+# Prompt the user whether to delete all files or specific files
+read -p "Do you want to delete all files in the bucket? (y/n): " delete_all
+
+if [ "$delete_all" == "y" ]; then
+    # Delete all files in the bucket
+    echo "Deleting all files in $BUCKET_NAME..."
+    aws s3 rm s3://$BUCKET_NAME --recursive
+    echo "All files deleted successfully."
+else
+    # Prompt for a list of files to delete
+    read -p "Enter the names of the files to delete, separated by spaces: " -a files
+
+    for OBJECT_NAME in "${files[@]}"; do
+        echo "Deleting object $OBJECT_NAME in $BUCKET_NAME..."
+
+        if ! aws s3api delete-object --bucket "$BUCKET_NAME" --key "$OBJECT_NAME"; then
+            echo "Failed to delete object $OBJECT_NAME in $BUCKET_NAME"
+        else
+            echo "Object deleted successfully: $OBJECT_NAME"
+        fi
+    done
+fi

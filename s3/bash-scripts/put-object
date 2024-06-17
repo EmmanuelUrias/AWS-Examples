@@ -1,1 +1,23 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "Usage: $0 <bucket-name>"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+# Create a temporary directory for the files
+TEMP_DIR=$(mktemp -d)
+
+# Create a couple of files in the temporary directory
+echo "This is file12" > $TEMP_DIR/file12.txt
+
+# Upload the file to the specified S3 bucket
+aws s3api put-object --bucket $BUCKET_NAME --key "file12.txt" --body "$TEMP_DIR/file12.txt"
+
+# Clean up the temporary directory
+rm -r $TEMP_DIR
+
+echo "Object file12.txt has been uploaded to s3://$BUCKET_NAME/"
