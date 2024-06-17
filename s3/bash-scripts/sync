@@ -1,1 +1,28 @@
 #! /usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "Usage: $0 <bucket-name>"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+# Create a temporary directory for the files
+TEMP_DIR=$(mktemp -d)
+
+# Create a couple of files in the temporary directory
+echo "This is file1" > $TEMP_DIR/file1.txt
+echo "This is file2" > $TEMP_DIR/file2.txt
+
+# Create more files if needed
+echo "This is file3" > $TEMP_DIR/file3.txt
+echo "This is file4" > $TEMP_DIR/file4.txt
+
+# Sync the files to the specified S3 bucket
+aws s3 sync $TEMP_DIR s3://$BUCKET_NAME/
+
+# Clean up the temporary directory
+rm -r $TEMP_DIR
+
+echo "Files have been synced to s3://$BUCKET_NAME/"

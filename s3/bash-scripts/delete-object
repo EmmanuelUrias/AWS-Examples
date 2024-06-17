@@ -1,0 +1,29 @@
+#! /usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "There needs to be a bucket name eg. ./bucket_script.sh my-bucket-name"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+# Check for object name
+if [ -z "$2" ]; then
+    echo "There needs to be a object name eg. ./bucket_script.sh object-name"
+    exit 1
+fi
+
+OBJECT_NAME=$2
+
+echo "Delete object $OBJECT_NAME in $BUCKET_NAME "
+
+# Determine if we need to include the --create-bucket-configuration option, for the output you can change to text or table if needed
+if ! aws s3api delete-object \
+    --bucket "$BUCKET_NAME" \
+    --key "$OBJECT_NAME"; then
+    echo "Failed to delete object $OBJECT_NAME in $BUCKET_NAME"
+    exit 1
+fi
+
+echo "Object deleted successfully: $OBJECT_NAME"
