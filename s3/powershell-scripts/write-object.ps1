@@ -9,3 +9,7 @@ $fileContent = 'Hello World!'
 Set-Content -Path $fileName -Value $fileContent
 
 Write-S3Object -BucketName $bucketName -File $fileName -Key $fileName
+
+Remove-Item -Path $fileName -Force
+
+Write-Host "File $fileName has been uploaded to S3."
