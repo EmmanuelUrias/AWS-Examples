@@ -12,6 +12,7 @@ client = Aws::S3::Client.new
 resp = client.create_bucket({
   bucket: bucket_name, 
 })
+binding.pry # Run resp or bucket name in the prompt to see what's happening, run exit to continue or exit! to force stop
 
 # Generate a random number of files to create, between 1 and 6
 number_of_files = 1 + rand(6)
@@ -19,7 +20,6 @@ puts "number_of_files: #{number_of_files}"
 
 # Create the specified number of files
 number_of_files.times.each do |i|
-  puts "i: #{i}"
   filename = "file_#{i}.txt"
   output_path = "/tmp/#{filename}"
 
