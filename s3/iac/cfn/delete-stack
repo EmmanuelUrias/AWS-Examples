@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Check for stack name
+if [ -z "$1" ]; then
+    echo "There needs to be a stack name eg. s3-stack"
+    exit 1
+fi
+
+STACK_NAME=$1
+
+aws cloudformation delete-stack \
+ --stack-name $STACK_NAME
+
+echo "Stack deleted"

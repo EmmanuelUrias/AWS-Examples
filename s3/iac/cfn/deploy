@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+echo "Deploy S3 bucket via CloudFormation"
+
+# Check for template name
+if [ -z "$1" ]; then
+    echo "There needs to be a template file eg. template.yaml"
+    exit 1
+fi
+
+TEMPLATE_FILE=$1
+
+# Check for stack name
+if [ -z "$2" ]; then
+    echo "There needs to be a stack name eg. s3-stack"
+    exit 1
+fi
+
+STACK_NAME=$2
+
+# Deploy the CloudFormation stack and capture any error messages
+if ! output=$(aws cloudformation deploy --template-file "$TEMPLATE_FILE" --no-execute-changeset --stack-name "$STACK_NAME" 2>&1); then
+    echo "Error during stack deployment:"
+    echo "$output"
+    exit 1
+fi
+
+echo "Review in progress, visit console to execute changeset"
