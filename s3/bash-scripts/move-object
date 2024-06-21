@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "Usage: $0 <bucket-name> <source-key> <destination-key>"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+SOURCE_KEY=$2
+DESTINATION_KEY=$3
+
+# Copy the object to the new location
+aws s3api copy-object --bucket "$BUCKET_NAME" --copy-source "$BUCKET_NAME/$SOURCE_KEY" --key "$DESTINATION_KEY"
+
+# Check if the copy was successful
+if [ $? -eq 0 ]; then
+    # Delete the original object
+    aws s3api delete-object --bucket "$BUCKET_NAME" --key "$SOURCE_KEY"
+    echo "Object moved successfully from $SOURCE_KEY to $DESTINATION_KEY in bucket $BUCKET_NAME"
+else
+    echo "Failed to copy the object"
+fi

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "There needs to be a bucket name eg. ./bucket_script.sh my-bucket-name"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+# Check for storage class 
+if [ -z "$2" ]; then
+    echo "There needs to be a storage class eg. STANDARD_IA"
+    exit 1
+fi
+
+STORAGE_CLASS=$2
+
+## Create file
+echo "Hello world" > hello.txt
+
+echo "Uploading file and setting it to $STORAGE_CLASS"
+## Upload file and change class
+aws s3api put-object --bucket $BUCKET_NAME --key intel-tier/hello2.txt --body hello2.txt --storage-class $STORAGE_CLASS
+
