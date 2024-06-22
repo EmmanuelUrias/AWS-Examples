@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+# Check for bucket name
+if [ -z "$1" ]; then
+    echo "There needs to be a bucket name eg. ./bucket_script.sh my-bucket-name"
+    exit 1
+fi
+
+BUCKET_NAME=$1
+
+## Create Bucket
+aws s3api create-bucket --bucket $BUCKET_NAME
+echo "Created bucket"
+
+## Create file
+echo "Hello world" > file.txt
+
+## Upload a file
+aws s3api put-object --bucket $BUCKET_NAME --key file.txt --body file.txt
+echo "Uploaded file"
+
+# Define the bucket policy template
+read -r -d '' BUCKET_POLICY << EOM
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::590183961381:user/CrossAccountUser"
+            },
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::$BUCKET_NAME/*"
+        }
+    ]
+}
+EOM
+
+# Write the bucket policy to a JSON file
+echo "$BUCKET_POLICY" > policy.json
+
+# Apply the bucket policy
+aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy file://policy.json
+
+# Clean up the policy and file
+rm policy.json
+rm file.txt
+
+echo "Bucket policy applied to $BUCKET_NAME"
+
+# Prompt the user whether to delete all files or specific files
+read -p "Do you want to delete bucket? (y/n): " clean_up
+
+if [ "$clean_up" == "y" ]; then
+    # Delete all files in the bucket
+    echo "Deleting all files in $BUCKET_NAME..."
+    aws s3 rm s3://$BUCKET_NAME --recursive
+    echo "All files deleted successfully."
+    aws s3 rb s3://$BUCKET_NAME
+    echo "Bucket deleted successfully"
+fi
