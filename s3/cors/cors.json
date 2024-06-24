@@ -1,0 +1,11 @@
+{
+    "CORSRules": [
+        {
+            "AllowedOrigins": ["https://hoqksv3pfa.execute-api.us-east-1.amazonaws.com/test/hello"],
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["POST"],
+            "MaxAgeSeconds": 3000,
+            "ExposeHeaders": ["x-amz-server-side-encryption"]
+        }
+    ]
+}
