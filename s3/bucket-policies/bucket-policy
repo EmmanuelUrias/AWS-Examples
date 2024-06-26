@@ -19,7 +19,7 @@ echo "Hello world" > file.txt
 aws s3api put-object --bucket $BUCKET_NAME --key file.txt --body file.txt
 echo "Uploaded file"
 
-# Define the bucket policy template
+# Define the bucket policy template FYI the Principal is a predefined user
 read -r -d '' BUCKET_POLICY << EOM
 {
     "Version": "2012-10-17",
