@@ -1,0 +1,48 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create a role for us to assume and create a resource we'll have access to
+Parameters:
+  BucketName:
+    Type: String
+    Default: "sts-demo-443"
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref BucketName
+  StsUser:
+    Type: 'AWS::IAM::UserPolicy'
+    Properties: 
+      PolicyDocument: {
+        "Version": "2012-10-17",
+        "Statement": {
+          "Effect": "Allow",
+          "Action": "sts:AssumeRole",
+          "Resource": "arn:aws:iam::099001967703:role/my-sts-stack-StsRole-eAtAgzkhItGD"
+        }
+      }
+      PolicyName: 'StsAssumePolicy'
+      UserName: 'sts-machine-user'
+  StsRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "arn:aws:iam::099001967703:user/sts-machine-user"
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: s3access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: [
+                  Fn::Sub: "arn:aws:s3:::*",
+                  Fn::Sub: "arn:aws:s3:::${BucketName}",
+                  Fn::Sub: "arn:aws:s3:::${BucketName}/*"
+                  ]
