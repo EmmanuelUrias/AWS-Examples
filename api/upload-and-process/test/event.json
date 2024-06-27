@@ -1,0 +1,15 @@
+{
+    "Records": [
+      {
+        "s3": {
+          "bucket": {
+            "name": "test-py-code-223"
+          },
+          "object": {
+            "key": "sample-file.txt"
+          }
+        }
+      }
+    ]
+  }
+  
