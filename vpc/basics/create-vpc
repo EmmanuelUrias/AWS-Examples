@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+# Create out VPC
+VPC_ID=$(aws ec2 create-vpc --cidr-block "10.10.0.0/16" \
+    --region us-east-1 \
+    --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=PracticeVPC}]' \
+    --query Vpc.VpcId \
+    --output text
+)
+
+echo $VPC_ID
+
+# Create IGW
+IGW_ID=$(aws ec2 create-internet-gateway \
+    --tag-specifications 'ResourceType=internet-gateway,Tags=[{Key=Name,Value=PracticeVPC-igw}]' \
+    --query InternetGateway.InternetGatewayId \
+    --output text
+)
+
+echo $IGW_ID
+
+# Attach IGW
+aws ec2 attach-internet-gateway \
+    --internet-gateway-id $IGW_ID \
+    --vpc-id $VPC_ID
+
+echo "${IGW_ID} has attached to ${VPC_ID}"
+
+## Create new subnets
+SUBNET_ID_1=$(aws ec2 create-subnet \
+    --vpc-id $VPC_ID \
+    --cidr-block 10.10.0.0/20 \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=PracticeVPC-subnet01}]' \
+    --query Subnet.SubnetId \
+    --output text
+)
+
+echo $SUBNET_ID_1
+
+SUBNET_ID_2=$(aws ec2 create-subnet \
+    --vpc-id $VPC_ID \
+    --cidr-block 10.10.16.0/20 \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=PracticeVPC-subnet02}]' \
+    --query Subnet.SubnetId \
+    --output text
+)
+
+echo $SUBNET_ID_2
+
+# Configure route table to explicity associate subnets
+ROUTE_TABLE_ID=$(aws ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=${VPC_ID}" \
+    --query 'RouteTables[0].RouteTableId' \
+    --output text
+)
+
+
+echo $ROUTE_TABLE_ID
+
+aws ec2 associate-route-table --route-table-id $ROUTE_TABLE_ID --subnet-id $SUBNET_ID_1
+aws ec2 associate-route-table --route-table-id $ROUTE_TABLE_ID --subnet-id $SUBNET_ID_2
+
+echo "RT associated with subnets"
+
+# Add a route for our RT to our IGW
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID
+
+echo "route for igw created"

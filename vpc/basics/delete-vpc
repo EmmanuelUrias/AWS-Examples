@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+## Delete VPC
+
+if [ -z "$1" ]; then
+    echo "There needs to be a VPC Id eg. vpc-12340694772"
+    exit 1
+fi
+
+VPC_ID=$1
+
+aws ec2 delete-vpc --vpc-id $VPC_ID
+
+echo "VPC deleted"
