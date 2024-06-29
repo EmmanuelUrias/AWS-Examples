@@ -15,7 +15,28 @@ SUBNET_ID=$(aws ec2 create-subnet --vpc-id $VPC_ID \
     --output text
 )
 echo "Subnet ID: $SUBNET_ID"
+
+# Create Internet Gateway
+IGW_ID=$(aws ec2 create-internet-gateway --query InternetGateway.InternetGatewayId --output text)
+aws ec2 attach-internet-gateway --vpc-id $VPC_ID --internet-gateway-id $IGW_ID
+echo "Internet Gateway ID: $IGW_ID"
+
+# Configure route table to explicity associate subnets
+ROUTE_TABLE_ID=$(aws ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=${VPC_ID}" \
+    --query 'RouteTables[0].RouteTableId' \
+    --output text
+)
+
+echo "Route Table ID: $ROUTE_TABLE_ID"
+
+# Add route to Internet Gateway
+echo "Adding route to IGW..."
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID
+
+aws ec2 associate-route-table --route-table-id $ROUTE_TABLE_ID --subnet-id $SUBNET_ID
 ```
+
 ## Create a SG
 ```sh
 aws cloudformation deploy \
