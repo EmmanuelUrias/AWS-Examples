@@ -1,4 +1,55 @@
 #!/usr/bin/env bash
 
-# Create IPv6 VPC
-aws ec2 create-vpc --cidr-block 10.0.0.0/16 --amazon-provided-ipv6-cidr-block
+# Create VPC with IPv6 CIDR block
+VPC_ID=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --amazon-provided-ipv6-cidr-block --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=PracticeVPC}]' --query 'Vpc.VpcId' --output text)
+echo "VPC ID: $VPC_ID"
+
+# Retrieve the IPv6 CIDR block associated with the VPC
+IPV6_CIDR_BLOCK=$(aws ec2 describe-vpcs --vpc-ids $VPC_ID --query 'Vpcs[0].Ipv6CidrBlockAssociationSet[0].Ipv6CidrBlock' --output text)
+echo "IPv6 CIDR Block: $IPV6_CIDR_BLOCK"
+
+# Create a subnet with the IPv6 CIDR block
+SUBNET_ID=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block 10.0.0.0/24 --ipv6-cidr-block $IPV6_CIDR_BLOCK --query 'Subnet.SubnetId' --output text)
+echo "Subnet ID: $SUBNET_ID"
+
+# Optionally, enable IPv6 on the subnet (not always necessary)
+aws ec2 modify-subnet-attribute --subnet-id $SUBNET_ID --enable-dns64 --assign-ipv6-address-on-creation
+
+# Create an egress only internet gateway
+EGRESS_ONLY_IG_ID=$(aws ec2 create-egress-only-internet-gateway --vpc-id $VPC_ID --query EgressOnlyInternetGateway.EgressOnlyInternetGatewayId --output text)
+echo "Egress only internet gateway created"
+
+# Create Internet Gateway
+IGW_ID=$(aws ec2 create-internet-gateway --query InternetGateway.InternetGatewayId --output text)
+aws ec2 attach-internet-gateway --vpc-id $VPC_ID --internet-gateway-id $IGW_ID
+echo "Internet Gateway ID: $IGW_ID"
+
+# Allocate address for Elastic IP
+ALLOCATION_ID=$(aws ec2 allocate-address --query AllocationId --output text)
+
+# Create NAT gateway
+NAT_GATEWAY_ID=$(aws ec2 create-nat-gateway --subnet-id $SUBNET_ID --allocation-id $ALLOCATION_ID --query NatGateway.NatGatewayId --output text)
+
+# Configure route table to explicity associate subnets
+ROUTE_TABLE_ID=$(aws ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=${VPC_ID}" \
+    --query 'RouteTables[0].RouteTableId' \
+    --output text
+)
+
+echo "Route Table ID: $ROUTE_TABLE_ID"
+
+# Add route to Internet Gateway
+echo "Adding routes to IGW, Egress IGW, and NAT GW..."
+# Create a route for the egress igw 
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-ipv6-cidr-clock ::/0 --egress-only-internet-gateway-id $EGRESS_ONLY_IG_ID
+# Create a route for the nat gateway PS "64:ff9b::/96" is a ipv6 prefix used for NAT64(Network Address Translation 64)
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-ipv6-cidr-clock 64:ff9b::/96 --nat-gateway-id $NAT_GATEWAY_ID
+# Route for igw
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID
+
+aws ec2 associate-route-table --route-table-id $ROUTE_TABLE_ID --subnet-id $SUBNET_ID
+
+
+
+echo "Created subnet with IPv6 CIDR block"
