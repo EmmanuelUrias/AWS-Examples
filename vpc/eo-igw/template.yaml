@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Launch a simple EC2 for testing VPC NACL
+
+Parameters:
+  ImageID:
+    Default: "ami-01b799c439fd5516a"
+    Type: String
+  KeyName:
+    Default: "MyKeyPair"
+    Type: String
+  SubnetID:
+    Type: String
+  VpcID:
+    Type: String
+
+Resources:
+  SSMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref SSMRole
+
+  MyEC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      InstanceType: "t2.micro"
+      ImageId: !Ref ImageID
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref SubnetID
+          AssociatePublicIpAddress: true
+          GroupSet:
+            - Ref: InstanceSecurityGroup
+          DeleteOnTermination: true
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !Ref VpcID
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
