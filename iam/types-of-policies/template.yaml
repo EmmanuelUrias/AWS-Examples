@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Launch a simple EC2 for testing VPC NACL
+
+Resources:
+  IAMUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: "delete-later"
+      Policies:
+        - PolicyName: S3CustomerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                Resource: arn:aws:s3:::*/*
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+
+  InlinePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CFNUsers
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'cloudformation:Describe*'
+              - 'cloudformation:List*'
+              - 'cloudformation:Get*'
+            Resource: '*'
+      Users:
+        - !Ref IAMUser

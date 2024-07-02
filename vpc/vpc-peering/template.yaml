@@ -72,6 +72,14 @@ Resources:
       SubnetId: !Ref SubnetID2
       SecurityGroupIds: 
         - !Ref InstanceSecurityGroup2
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<html><body><h1>Hello from Apache on Amazon Linux 2</h1></body></html>" > /var/www/html/index.html
 
   InstanceSecurityGroup1:
     Type: AWS::EC2::SecurityGroup
