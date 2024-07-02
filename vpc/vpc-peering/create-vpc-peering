@@ -1,0 +1,102 @@
+# Create one VPC with an IGW
+# Create another without it but will recieve traffic from the internet via peering
+# Create 2 instance one in each
+# Make both IPv6 only
+
+# VPC 1
+# Create VPC with IPv6 CIDR block
+VPC_ID_1=$(aws ec2 create-vpc --cidr-block 10.0.0.0/16 --amazon-provided-ipv6-cidr-block --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=PracticeVPC1}]' --query 'Vpc.VpcId' --output text)
+echo "VPC ID: $VPC_ID_1"
+
+# Retrieve the IPv6 CIDR block associated with the VPC
+IPV6_CIDR_BLOCK_1=$(aws ec2 describe-vpcs --vpc-ids $VPC_ID_1 --query 'Vpcs[0].Ipv6CidrBlockAssociationSet[0].Ipv6CidrBlock' --output text)
+echo "IPv6 CIDR Block: $IPV6_CIDR_BLOCK_1"
+
+# Create a subnet with the IPv6 CIDR block
+SUBNET_ID_1=$(aws ec2 create-subnet --vpc-id $VPC_ID_1 --cidr-block 10.0.0.0/24 --ipv6-cidr-block $IPV6_CIDR_BLOCK_1 --query 'Subnet.SubnetId' --output text)
+echo "Subnet ID: $SUBNET_ID_1"
+
+# Optionally, enable IPv6 on the subnet (not always necessary)
+aws ec2 modify-subnet-attribute --subnet-id $SUBNET_ID_1 --assign-ipv6-address-on-creation
+aws ec2 modify-subnet-attribute --subnet-id $SUBNET_ID_1 --enable-dns64
+echo "modified subnet attributes to allow dns64 and auto assign ipv6-address-on-creation"
+
+echo "Created subnet with IPv6 CIDR block"
+
+# Create Internet Gateway
+IGW_ID=$(aws ec2 create-internet-gateway --query InternetGateway.InternetGatewayId --output text)
+aws ec2 attach-internet-gateway --vpc-id $VPC_ID_1 --internet-gateway-id $IGW_ID
+echo "Internet Gateway ID: $IGW_ID"
+
+# Configure route table to explicity associate subnets
+ROUTE_TABLE_ID_1=$(aws ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=${VPC_ID_1}" \
+    --query 'RouteTables[0].RouteTableId' \
+    --output text
+)
+echo "Route Table ID: $ROUTE_TABLE_ID_1"
+
+# Associate route table
+aws ec2 associate-route-table --route-table-id $ROUTE_TABLE_ID_1 --subnet-id $SUBNET_ID_1
+echo "Associating route table"
+
+# Route for igw RETURN
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID_1 --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW_ID
+echo "Routes added"
+
+
+# VPC 2
+# Create VPC with IPv6 CIDR block
+VPC_ID_2=$(aws ec2 create-vpc --cidr-block 12.0.0.0/16 --amazon-provided-ipv6-cidr-block --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=PracticeVPC2}]' --query 'Vpc.VpcId' --output text)
+echo "VPC ID: $VPC_ID_2"
+
+# Retrieve the IPv6 CIDR block associated with the VPC
+IPV6_CIDR_BLOCK_2=$(aws ec2 describe-vpcs --vpc-ids $VPC_ID_2 --query 'Vpcs[0].Ipv6CidrBlockAssociationSet[0].Ipv6CidrBlock' --output text)
+echo "IPv6 CIDR Block: $IPV6_CIDR_BLOCK_2"
+
+# Create a subnet with the IPv6 CIDR block
+SUBNET_ID_2=$(aws ec2 create-subnet --vpc-id $VPC_ID_2 --cidr-block 12.0.0.0/24 --ipv6-cidr-block $IPV6_CIDR_BLOCK_2 --query 'Subnet.SubnetId' --output text)
+echo "Subnet ID: $SUBNET_ID_2"
+
+# Optionally, enable IPv6 on the subnet (not always necessary)
+aws ec2 modify-subnet-attribute --subnet-id $SUBNET_ID_2 --assign-ipv6-address-on-creation
+aws ec2 modify-subnet-attribute --subnet-id $SUBNET_ID_2 --enable-dns64
+echo "modified subnet attributes to allow dns64 and auto assign ipv6-address-on-creation"
+
+echo "Created subnet with IPv6 CIDR block"
+
+# Configure route table to explicity associate subnets
+ROUTE_TABLE_ID_2=$(aws ec2 describe-route-tables \
+    --filters "Name=vpc-id,Values=${VPC_ID_2}" \
+    --query 'RouteTables[0].RouteTableId' \
+    --output text
+)
+echo "Route Table ID: $ROUTE_TABLE_ID_2"
+
+# Associate route table
+aws ec2 associate-route-table --route-table-id $ROUTE_TABLE_ID_2 --subnet-id $SUBNET_ID_2
+echo "Associating route table"
+
+# Creating Peer connection
+PEERING_CONNECTION_ID=$(aws ec2 create-vpc-peering-connection --vpc-id $VPC_ID_1 --peer-vpc-id $VPC_ID_2 --query VpcPeeringConnection.VpcPeeringConnectionId --output text)
+echo "Peer connection ID: $PEERING_CONNECTION_ID"
+
+echo "Accepting Peer connection..."
+aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $PEERING_CONNECTION_ID
+
+# Create routes for Peering
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID_1 --destination-cidr-block 12.0.0.0/16 --vpc-peering-connection-id $PEERING_CONNECTION_ID
+aws ec2 create-route --route-table-id $ROUTE_TABLE_ID_2 --destination-cidr-block 10.0.0.0/16 --vpc-peering-connection-id $PEERING_CONNECTION_ID
+
+echo "Creating EC2 key pairs..."
+aws ec2 create-key-pair --key-name MyKeyPair1 --query 'KeyMaterial' --output text > MyKeyPair1.pem
+chmod 400 MyKeyPair1.pem
+aws ec2 create-key-pair --key-name MyKeyPair2 --query 'KeyMaterial' --output text > MyKeyPair2.pem
+chmod 400 MyKeyPair2.pem
+
+# Deploy CloudFormation stack
+aws cloudformation deploy \
+    --template-file "template.yaml" \
+    --stack-name "my-nacl-stack" \
+    --parameter-overrides SubnetID1=$SUBNET_ID_1 SubnetID2=$SUBNET_ID_2 VpcID1=$VPC_ID_1 VpcID2=$VPC_ID_2 \
+    --capabilities CAPABILITY_IAM
