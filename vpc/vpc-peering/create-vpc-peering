@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Create one VPC with an IGW
 # Create another without it but will recieve traffic from the internet via peering
 # Create 2 instance one in each
