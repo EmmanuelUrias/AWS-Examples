@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+# Get VPC ID
+VPC_ID=$(aws ec2 describe-vpcs --query Vpcs[0].VpcId --output text)
+
+# Create a security group
+SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name apache-sg --description "My security group for apache server" --vpc-id $VPC_ID --query 'GroupId' --output text)
+
+# Configure security group rules
+# Allow SSH access
+aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# Allow HTTP access
+aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 80 --cidr 0.0.0.0/0
+
+# Allow HTTPS access
+aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 443 --cidr 0.0.0.0/0
+
+# Create trust policy JSON file
+cat <<EoF > trust-policy.json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EoF
+
+# Create IAM role
+aws iam create-role --role-name EC2SSMRole --assume-role-policy-document file://trust-policy.json
+
+# Attach policies to the role
+aws iam attach-role-policy --role-name EC2SSMRole --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+# Create instance profile
+INSTANCE_PROFILE_ARN=$(aws iam create-instance-profile --instance-profile-name MyInstanceProfile3354ForEC2225458jjup6678ppj38473782 --query InstanceProfile.Arn --output text)
+
+# Add role to instance profile
+aws iam add-role-to-instance-profile --instance-profile-name MyInstanceProfile3354ForEC2225458jjup6678ppj38473782 --role-name EC2SSMRole
+
+# Create a key pair
+echo "Creating EC2 key pair..."
+aws ec2 create-key-pair --key-name MyKeyPair --query 'KeyMaterial' --output text > MyKeyPair.pem
+chmod 400 MyKeyPair.pem
+
+# Create the instance
+echo "Creating the instance..."
+aws ec2 run-instances \
+    --image-id ami-04df9ee4d3dfde202 \
+    --instance-type t2.medium \
+    --key-name MyKeyPair \
+    --subnet-id subnet-0ad725ee29938aa51 \
+    --security-group-ids $SECURITY_GROUP_ID \
+    --iam-instance-profile Arn=$INSTANCE_PROFILE_ARN \
+    --associate-public-ip-address \
+    --count 1 \
+    --user-data file://userdata.ps1
+
+# Verify creation
+INSTANCE_IP1=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+echo "$INSTANCE_IP1"
+
+rm trust-policy.json
+
+# Create the another instance
+echo "Creating the instance..."
+aws ec2 run-instances \
+    --image-id ami-0195204d5dce06d99 \
+    --instance-type t3.micro \
+    --key-name MyKeyPair \
+    --subnet-id subnet-0ad725ee29938aa51 \
+    --security-group-ids $SECURITY_GROUP_ID \
+    --iam-instance-profile Arn=$INSTANCE_PROFILE_ARN \
+    --associate-public-ip-address \
+    --count 1 \
+    --user-data file://userdata.sh
+
+# Verify creation
+INSTANCE_IP2=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[1].PublicIpAddress' --output text)
+echo "$INSTANCE_IP2"
+
+# Create the another instance
+echo "Creating the instance..."
+aws ec2 run-instances \
+    --image-id ami-0195204d5dce06d99 \
+    --instance-type t3.micro \
+    --key-name MyKeyPair \
+    --subnet-id subnet-0ad725ee29938aa51 \
+    --security-group-ids $SECURITY_GROUP_ID \
+    --iam-instance-profile Arn=$INSTANCE_PROFILE_ARN \
+    --associate-public-ip-address \
+    --count 1 \
+    --user-data file://userdata.yml
+
+# Verify creation
+INSTANCE_IP3=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[2].PublicIpAddress' --output text)
+echo "$INSTANCE_IP3"
+
+# This doesn't really work but the idea is that you can upload the user data to the EC2 servers like this and it allows for pwsh, bash, and yaml
