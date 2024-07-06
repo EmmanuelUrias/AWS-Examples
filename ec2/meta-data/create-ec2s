@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+# Create trust policy JSON file
+cat <<EoF > trust-policy.json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EoF
+
+# Create IAM role
+aws iam create-role --role-name EC2SSMRole --assume-role-policy-document file://trust-policy.json
+
+# Attach policies to the role
+aws iam attach-role-policy --role-name EC2SSMRole --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+# Create instance profile
+aws iam create-instance-profile --instance-profile-name MyInstanceProfile
+
+# Add role to instance profile
+aws iam add-role-to-instance-profile --instance-profile-name MyInstanceProfile --role-name EC2SSMRole
+
+sleep 5
+
+# Create the instance with IMDSv1
+echo "Creating the instance..."
+INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id ami-06c68f701d8090592 \
+    --instance-type t2.micro \
+    --subnet-id subnet-0ad725ee29938aa51 \
+    --iam-instance-profile Name=MyInstanceProfile \
+    --associate-public-ip-address \
+    --count 1 \
+    --metadata-options HttpTokens=optional,HttpPutResponseHopLimit=2 \
+    --query 'Instances[0].InstanceId' \
+    --output text
+)
+
+echo "Instance ID: $INSTANCE_ID"
+
+# Wait for the instance to be running
+aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+# Verify creation
+INSTANCE_IP1=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+echo "Instance Public IP: $INSTANCE_IP1"
+
+# Clean up
+rm trust-policy.json
+
+# Go to SSM and run "sudo su - ec2-user" then run "curl http://169.254.169.254/latest/meta-data"
+
+# Change instance to IMDSv2
+echo "Waiting to modify the instance metadata options"
+read -p "Press Enter to continue..."
+
+echo "Modifying instance metadata options to IMDSv2"
+aws ec2 modify-instance-metadata-options --instance-id $INSTANCE_ID --http-tokens required
+
+# In SSM now run:
+
+# TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 6000"` \
+# && curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/
+
+# Delete instance profile
+# aws iam delete-instance-profile --instance-profile-name MyInstanceProfile
