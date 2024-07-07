@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+# Get VPC ID
+VPC_ID=$(aws ec2 describe-vpcs --query Vpcs[0].VpcId --output text)
+
+# Create a security group
+SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name connect-sg --description "My security group for ssh connection to ec2 server" --vpc-id $VPC_ID --query 'GroupId' --output text)
+
+# Configure security group rules
+# Allow SSH access
+aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# Create trust policy JSON file
+cat <<EoF > trust-policy.json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EoF
+
+# Create IAM role
+aws iam create-role --role-name EC2SSMRole --assume-role-policy-document file://trust-policy.json
+
+# Attach policies to the role
+aws iam attach-role-policy --role-name EC2SSMRole --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+# Create instance profile
+aws iam create-instance-profile --instance-profile-name MyInstanceProfile
+
+# Add role to instance profile
+aws iam add-role-to-instance-profile --instance-profile-name MyInstanceProfile --role-name EC2SSMRole
+
+# Create a key pair
+echo "Creating EC2 key pair..."
+aws ec2 create-key-pair --key-name MyKeyPair --query 'KeyMaterial' --output text > MyKeyPair.pem
+chmod 400 MyKeyPair.pem
+
+# Wait to make sure the instance profile is registered
+sleep 5
+
+# Create the instance
+echo "Creating the instance..."
+INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id ami-06c68f701d8090592 \
+    --instance-type t3.micro \
+    --subnet-id subnet-0ad725ee29938aa51 \
+    --security-group-ids $SECURITY_GROUP_ID \
+    --iam-instance-profile Name=MyInstanceProfile \
+    --associate-public-ip-address \
+    --key-name MyKeyPair \
+    --count 1 \
+    --query 'Instances[0].InstanceId' \
+    --output text
+)
+
+rm trust-policy.json
+
+# SSH connection using the Key pair, the IP will change depending on the instance
+ssh -i "MyKeyPair.pem" ec2-user@ec2-54-208-213-67.compute-1.amazonaws.com
