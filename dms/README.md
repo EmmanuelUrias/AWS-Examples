@@ -1,4 +1,10 @@
-# Install MySQL and PSQL Client
+# Using DMS
+First you run the cloudformation stacks to create the 2 db instances then you connect to the instances to upload the table and data.
+After that you create the DMS instance to then create the DMS task that will transfer the data.
+After you create the task you run it and pray that is works
+At this point the data should be replicated in both db instances
+
+## Install MySQL and PSQL Client
 ```sh
 sudo apt-get install -y postgresql-client 
 sudo apt-get install -y mysql-client 
