@@ -1,0 +1,13 @@
+{
+    "Bucket":"videos-example-bucket-223",
+    "Permissions":[
+        {
+            "GranteeType":"Canonical",
+            "Grantee":"099001967703",
+            "Access":[
+            "FullControl"
+            ]
+        }
+    ],
+    "StorageClass":"ReducedRedundancy"
+}
