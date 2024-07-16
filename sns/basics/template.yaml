@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: SNS Basic
+Resources:
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint:
+            Fn::GetAtt:
+              - "MyQueue1"
+              - "Arn"
+          Protocol: "sqs"
+        - Endpoint:
+            Fn::GetAtt:
+              - "MyQueue2"
+              - "Arn"
+          Protocol: "sqs"
+      TopicName: "SampleTopic"
+  Lambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Runtime: python3.12
+      PackageType: Zip
+      InlineCode: |
+        def handler(event, context):
+          message = 'Hello {} {}!'.format(m['first_name'], m['last_name'])
+          print("Log this for me")
+          return {
+            'message': message
+          }
