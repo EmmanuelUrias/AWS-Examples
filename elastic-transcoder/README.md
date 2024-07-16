@@ -2,6 +2,8 @@
 ```sh
 aws s3api create-bucket --bucket videos-example-bucket-223
 aws s3api create-bucket --bucket src-videos-example-bucket-223
+
+aws s3api put-object --bucket videos-example-bucket-223 --key App2Container.mp4 --body App2Container.mp4
 ```
 
 # Create a pipeline
@@ -22,4 +24,9 @@ aws elastictranscoder create-job \
 --outputs file://outputs.json \
 --output-key-prefix "videos/" \
 --user-metadata file://user-metadata.json
+```
+
+# Job details
+```sh
+aws elastictranscoder read-job --id 1721157778405-mcm4kb
 ```
