@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -e
+
+# we need the absolute path because relative path was giving us trouble
+root_path=$(realpath .)
+
+# sam deploy
+# ===================
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-deploying.html
+# https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-deploy.html
+# -------------------
+echo "== SAM deploy..."
+
+sam deploy \
+  --template-file "./.aws-sam/build/template.yaml" \
+  --stack-name "sns-basics-lambda" \
+  --capabilities "CAPABILITY_IAM"
