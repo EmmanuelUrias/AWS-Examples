@@ -1,7 +1,13 @@
-# frozen_string_literal: true
+require 'mqtt'
 
-source "https://rubygems.org"
+host = 'mqtts://admin:Testing123456!@b-6b39d23f-d358-4850-bfd4-a7784795fa05-1.mq.us-east-1.amazonaws.com:8883' # change
+topic = 'test/topic'
+message = "Hello World! MQTT"
 
-git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
-
-# gem "rails"
+begin
+  MQTT::Client.connect(host) do |client|
+    client.publish(topic,message)
+  end
+rescue =>  e
+  puts e.inspect
+end

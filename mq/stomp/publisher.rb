@@ -17,10 +17,7 @@ config = {
 
 #str = 'stomp+ssl://admin:Testing123456!@b-6b39d23f-d358-4850-bfd4-a7784795fa05-1.mq.us-east-1.amazonaws.com:61614'
 client = Stomp::Client.new(config)
+
 dest = '/queue/test'
-client.subscribe(dest) do |message|
-  puts 'subbed'
-  puts message
-  client.acknowledge(message)
-end
-client.join
+client.publish(dest,"Hello World! STOMP!")
+client.close
