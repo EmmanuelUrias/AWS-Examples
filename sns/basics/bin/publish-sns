@@ -2,7 +2,7 @@
 
 set -e
 
-TOPIC_ARN="arn:aws:sns:ca-central-1:982383527471:sns-basisc-lambda-SNSTopic-PX5aIoGcnICj"
+TOPIC_ARN="arn:aws:sns:us-east-1:099001967703:sns-basics-lambda-SNSTopic-RxhJCll1saTg"
 
 aws sns publish \
     --topic-arn $TOPIC_ARN \

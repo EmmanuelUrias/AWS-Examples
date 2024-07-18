@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+echo "Sending message to queue..." 
+
+aws sqs send-message \
+    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/StandardQueue \
+    --message-body "new message" \
+    --delay-seconds 10 \
+    --message-attributes file://send-message.json

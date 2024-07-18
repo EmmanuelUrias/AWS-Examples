@@ -1,0 +1,10 @@
+{
+    "userId": "12345",
+    "action": "create",
+    "timestamp": "2023-07-14T12:34:56Z",
+    "details": {
+        "firstName": "John",
+        "lastName": "Doe",
+        "email": "john.doe@example.com"
+    }
+}

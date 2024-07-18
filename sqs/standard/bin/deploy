@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+echo "== Deploying SQS standard queue"
+
+aws cloudformation deploy --template-file ./../template.yaml --stack-name sqs-stack
