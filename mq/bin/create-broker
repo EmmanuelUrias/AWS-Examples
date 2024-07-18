@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+echo "== Creating Broker..."
+
+aws mq create-broker \
+    --auto-minor-version-upgrade \
+    --broker-name MyBroker \
+    --deployment-mode SINGLE_INSTANCE \
+    --engine-type RABBITMQ \
+    --engine-version 3.13 \
+    --host-instance-type mq.t3.micro \
+    --publicly-accessible \
+    --users '[{"ConsoleAccess": true, "Password": "itsme1234567", "Username": "Me"}]'
