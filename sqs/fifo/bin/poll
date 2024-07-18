@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+echo "== Receiving message..."
+
+aws sqs receive-message \
+    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/StandardQueue \
+    --attribute-names All \
+    --message-attribute-names All \
+    --max-number-of-messages 10
