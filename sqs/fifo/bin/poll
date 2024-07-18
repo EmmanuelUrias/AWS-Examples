@@ -3,7 +3,7 @@
 echo "== Receiving message..."
 
 aws sqs receive-message \
-    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/StandardQueue \
+    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/sqsfifo-stack-MyQueue-Yk86B8F2T2DN.fifo \
     --attribute-names All \
     --message-attribute-names All \
     --max-number-of-messages 10

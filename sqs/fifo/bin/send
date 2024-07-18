@@ -3,7 +3,22 @@
 echo "Sending message to queue..." 
 
 aws sqs send-message \
-    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/StandardQueue \
-    --message-body "new message" \
-    --delay-seconds 10 \
-    --message-attributes file://send-message.json
+    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/sqsfifo-stack-MyQueue-Yk86B8F2T2DN.fifo \
+    --message-body "Hello 1" \
+    --message-group-id "hello" \
+    --message-attributes file://send-message.json \
+    --message-deduplication-id 1
+
+aws sqs send-message \
+    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/sqsfifo-stack-MyQueue-Yk86B8F2T2DN.fifo \
+    --message-body "Hello 2" \
+    --message-group-id "hello" \
+    --message-attributes file://send-message.json \
+    --message-deduplication-id 2
+
+aws sqs send-message \
+    --queue-url https://sqs.us-east-1.amazonaws.com/099001967703/sqsfifo-stack-MyQueue-Yk86B8F2T2DN.fifo \
+    --message-body "Hello 3" \
+    --message-group-id "hello" \
+    --message-attributes file://send-message.json \
+    --message-deduplication-id 3
