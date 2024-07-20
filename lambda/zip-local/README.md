@@ -5,7 +5,7 @@ sam build \
 ```
 ## To deploy
 ```sh
-aws s3api create-bucket --bucket-name zip-local-lambda-deployment-bucket
+aws s3api create-bucket --bucket zip-local-lambda-deployment-bucket
 
 ### Zip file and upload
 zip function.zip ./function/function.py
