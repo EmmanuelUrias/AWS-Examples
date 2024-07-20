@@ -1,0 +1,12 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: lambdafunction:latest
+    Metadata:
+      DockerContext: /Users/emmanuelurias/Desktop/AWS-Labs/AWS-Examples/lambda/container
+      Dockerfile: Dockerfile
+      SamResourceId: LambdaFunction
