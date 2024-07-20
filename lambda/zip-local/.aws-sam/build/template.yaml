@@ -4,9 +4,7 @@ Resources:
   LambdaFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: function.lambda_handler
+      Handler: function.function.lambda_handler
       Runtime: python3.12
       PackageType: Zip
-      CodeUri: LambdaFunction
-    Metadata:
-      SamResourceId: LambdaFunction
+      CodeUri: s3://zip-local-lambda-deployment-bucket/function.zip
