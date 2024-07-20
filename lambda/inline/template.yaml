@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      PackageType: Zip
+      InlineCode: |
+        def lambda_handler(event, context):
+          return {
+            'statusCode': 200,
+            'body': 'Hello from Lambda!'
+          }
