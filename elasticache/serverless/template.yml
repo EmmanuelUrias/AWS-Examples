@@ -9,7 +9,7 @@ Parameters:
     Default: vpc-00bb0ebfd33ff4f24
   ImageId:
     Type: String
-    Default: ami-0427090fd1714168b
+    Default: ami-04a81a99f5ec58529
   SubnetId:
     Type: String
     Default: subnet-0ad725ee29938aa51

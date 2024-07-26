@@ -6,7 +6,7 @@ aws elasticache create-serverless-cache --serverless-cache-name my-redis-cache -
 ## Install Redis
 Do this on your own its a simple brew commands
 
-## Make ec2 to connect to redis cache
+## Make ec2 to connect to redis cache(Make sure the instance is ubuntu)
 ```sh
 aws cloudformation deploy \
 --template-file template.yml \
