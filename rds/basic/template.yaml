@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: 2010-09-09
+AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Webserver RDS Postgres Instance with Secrets Manager
 Parameters:
@@ -41,7 +41,7 @@ Parameters:
     Default: 5432
   Subnets:
     Type: 'List<AWS::EC2::Subnet::Id>'
-    Description: A list of subnets for the Auto Scaling group    
+    Description: A list of subnets for the Auto Scaling group
 Resources:
   RDSPostgresSG:
     Type: AWS::EC2::SecurityGroup
