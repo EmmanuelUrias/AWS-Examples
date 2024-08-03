@@ -1,15 +1,18 @@
 import boto3
 import os
+import json
+import time
 
 client = boto3.client('cloudformation')
 secret = boto3.client('secretsmanager')
 ec2 = boto3.client('ec2')
+iam = boto3.client('iam')
 
 def create_stack():
-    # make_secret = secret.create_secret(
-    #     Name='my-rds-secret'
-    # )
-    # rds_secret = make_secret['ARN']
+    make_secret = secret.create_secret(
+        Name='my-rds-secret'
+    )
+    rds_secret = make_secret['ARN']
 
      # Read the template file content
     with open('template.yaml', 'r') as template_file:
@@ -44,7 +47,7 @@ def create_stack():
 
     print(resp)
 
-# create_stack()
+create_stack()
 
 def create_instance():
     def create_key_pair(key_name, save_to_file=True):
@@ -72,12 +75,44 @@ def create_instance():
 
     key_pair = create_key_pair('my-ec2-keypair')
 
+    trust_policy = {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "ec2.amazonaws.com"
+          },
+          "Action": "sts:AssumeRole"
+        }
+      ]
+    }
+
+    iam.create_role(
+        RoleName='EC2SSMRole',
+        AssumeRolePolicyDocument=json.dumps(trust_policy)
+    )
+    iam.attach_role_policy(
+        RoleName='EC2SSMRole',
+        PolicyArn='arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+    )
+    instance_profile = iam.create_instance_profile(
+        InstanceProfileName='MyInstanceProfile443'
+    )
+    iam.add_role_to_instance_profile(
+        InstanceProfileName='MyInstanceProfile443',
+        RoleName='EC2SSMRole'
+    )
+
+    time.sleep(10)
+
     instance = ec2.run_instances(
         ImageId='ami-0ba9883b710b05ac6',
         InstanceType='t3a.micro',
-        KeyName=f'{key_pair}',
+        KeyName=key_pair,
         SubnetId='subnet-025373b89d975735c',
         SecurityGroupIds=['sg-0938fea805aa7dddd'],
+        IamInstanceProfile={'Arn': f'{instance_profile['InstanceProfile']['Arn']}'},
         MinCount=1,
         MaxCount=1
     )
