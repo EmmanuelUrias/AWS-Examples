@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an EC2 instance with SSM enabled and security groups for connecting to an Aurora DB instance.
+
+Parameters:
+  KeyPair:
+    Type: String
+
+Resources:
+  # Create an IAM role for EC2 with SSM permissions
+  Ec2InstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/AmazonEC2RoleforSSM'
+
+  # Attach the instance profile to the role
+  Ec2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: '/'
+      Roles:
+        - !Ref Ec2InstanceRole
+
+  # Security group for the EC2 instance
+  Ec2SecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Allow SSH and HTTP access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  # Security group for the Aurora DB instance
+  AuroraSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Allow Aurora DB access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref Ec2SecurityGroup
+
+  # Create the EC2 instance
+  Ec2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-0ba9883b710b05ac6
+      IamInstanceProfile: !Ref Ec2InstanceProfile
+      SecurityGroupIds:
+        - !Ref Ec2SecurityGroup
+      KeyName: !Ref KeyPair
+      Tags:
+        - Key: Name
+          Value: SSM-Enabled-Instance
+
+Outputs:
+  InstanceId:
+    Description: The instance ID
+    Value: !Ref Ec2Instance
+  InstancePublicIP:
+    Description: The public IP address of the EC2 instance
+    Value: !GetAtt Ec2Instance.PublicIp
+  InstancePublicDNS:
+    Description: The public DNS name of the EC2 instance
+    Value: !GetAtt Ec2Instance.PublicDnsName
+  AuroraSecurityGroup:
+    Description: The security group ID for the Aurora DB instance
+    Value: !Ref AuroraSecurityGroup
