@@ -17,5 +17,5 @@ aws dynamodb put-item \
 
 ### To tear down
 ```sh
-sam delete --stack-name inline-lambda-function-stack
+sam delete --stack-name my-dynamo-stack
 ```
