@@ -6,6 +6,7 @@ ec2 = boto3.client('ec2')
 iam = boto3.client('iam')
 elbv2 = boto3.client('elbv2')
 acm = boto3.client('acm')
+route53 = boto3.client('route53')
 
 def get_vpc_id():
     # Describe VPCs and find the default one
@@ -18,7 +19,7 @@ def get_vpc_id():
     return vpc_id
 
 def get_subnet_id(return_index=1):
-    vpc_id = get_vpc_id
+    vpc_id = get_vpc_id()
     
     # Describe subnets within the VPC and specific AZs
     subnets = ec2.describe_subnets(
@@ -55,18 +56,19 @@ def get_default_sg_group_id():
     
 
 def request_certificate(domain_name, validation_method='DNS'):
+    wildcard_domain_name = f"*.{domain_name}"
+    
     response = acm.request_certificate(
         DomainName=domain_name,
         ValidationMethod=validation_method,
         SubjectAlternativeNames=[
-            f'*/{domain_name}'
+            wildcard_domain_name
         ]
     )
     
     certificate_arn = response['CertificateArn']
     print(f"Certificate requested successfully. ARN: {certificate_arn}")
     return certificate_arn
-
 
 def create_instances():
     def create_instance_profile():
@@ -123,7 +125,7 @@ def create_instances():
 
     instance_profile_name = create_instance_profile()
     security_group_id = get_default_sg_group_id()
-    subnet_id = get_subnet_id(1)
+    subnet_id = get_subnet_id()
 
     if not (instance_profile_name and security_group_id and subnet_id):
         print("Failed to get necessary components for instance creation.")
@@ -151,7 +153,8 @@ def create_instances():
     return instance_ids
 
 
-alb_info = create_instances()
+# alb_info = create_instances() => Already deployed
+alb_info = ['i-0092ceda95d52c9a8', 'i-0e76a2040fb05eaa5']
 
 def create_alb(alb_info=alb_info):
     instance_ids = alb_info
@@ -165,47 +168,50 @@ def create_alb(alb_info=alb_info):
         print(f"Using Instance ID: {instance_ids[0]} and Security Group ID: {security_group_id} for ALB creation.")
         
         # Create ALB here using the instance_ids and sg_id
-        alb = elbv2.create_load_balancer(
-            Name='my-load-balancer',
-            Subnets=[subnet_1, subnet_2],
-            SecurityGroups=[security_group_id],
-            Scheme='internet-facing',
-            Type='application',
-            IpAddressType='ipv4'
-        )
+        # alb = elbv2.create_load_balancer(
+        #     Name='my-load-balancer',
+        #     Subnets=[subnet_1, subnet_2],
+        #     SecurityGroups=[security_group_id],
+        #     Scheme='internet-facing',
+        #     Type='application',
+        #     IpAddressType='ipv4'
+        # )
         
-        alb_arn = alb['arn']
+        #alb_arn = alb['LoadBalancers'][0]['LoadBalancerArn']
+        alb_arn = 'arn:aws:elasticloadbalancing:us-east-1:099001967703:loadbalancer/app/my-load-balancer/6ddd11a20a01eb19'
         vpc_id = get_vpc_id()
 
-        target_group = elbv2.create_target_group(
-            Name='load-balancer-target-group',
-            protocol='HTTP',
-            Port=80,
-            HealthCheckEnabled=True,
-            HealthCheckPath="/",
-            HealthCheckIntervalSeconds=10,
-            HealthCheckTimeoutSeconds=5,
-            HealthyThresholdCount=2,
-            UnhealthyThresholdCount=2,
-            VpcId=vpc_id,
-            TargetType='instance'
-        )
+        # target_group = elbv2.create_target_group(
+        #     Name='load-balancer-target-group',
+        #     Protocol='HTTP',
+        #     Port=80,
+        #     HealthCheckEnabled=True,
+        #     HealthCheckPath="/",
+        #     HealthCheckIntervalSeconds=10,
+        #     HealthCheckTimeoutSeconds=5,
+        #     HealthyThresholdCount=2,
+        #     UnhealthyThresholdCount=2,
+        #     VpcId=vpc_id,
+        #     TargetType='instance'
+        # )
 
-        target_group_arn = target_group['TargetGroups'][0]['TargetGroupArn']
+        # target_group_arn = target_group['TargetGroups'][0]['TargetGroupArn']
+        target_group_arn = 'arn:aws:elasticloadbalancing:us-east-1:099001967703:targetgroup/load-balancer-target-group/e4513fb7b8d1832b'
 
-        # Register targets
-        elbv2.register_targets(
-            TargetGroupArn=target_group_arn,
-            Targets=[{'Id': instance_id, 'Port': 80} for instance_id in instance_ids]
-        )
+        # # Register targets
+        # elbv2.register_targets(
+        #     TargetGroupArn=target_group_arn,
+        #     Targets=[{'Id': instance_id, 'Port': 80} for instance_id in instance_ids]
+        # )
 
-        domain_name = 'example.com'  # Replace with your domain name
-        certificate_arn = request_certificate(domain_name)
+        domain_name = 'quiet-time-assistant.com'  # Replace with your domain name
+        # certificate_arn = request_certificate(domain_name)
+        certificate_arn = 'arn:aws:acm:us-east-1:099001967703:certificate/1cc2b2d9-f025-4b88-9798-c74ed5e400f0'
 
-        listener = elbv2.create_listener(
+        elbv2.create_listener(
             LoadBalancerArn=alb_arn,
             Protocol='HTTPS',
-            Port='443',
+            Port=443,
             DefaultActions=[
                 {
                     "Type": 'forward',
@@ -214,13 +220,37 @@ def create_alb(alb_info=alb_info):
             ],
             Certificates=[
                 {
-                    'CertificateArn': certificate_arn,
-                    'IsDefault': True
+                    'CertificateArn': certificate_arn
                 }
             ]
         )
 
-# Once domain is registered add the certificate to the thing 
-# Then using Route53 add a record that will send the domain to the alb
+    def create_route53_record(domain_name=domain_name, alb_dns_name=alb['LoadBalancers'][0]['DNSName'], alb_hosted_zone_id=alb['LoadBalancers'][0]['CanonicalHostedZoneId']):
+        hosted_zone_id = route53.list_hosted_zones()['HostedZones'][0]['Id']
+        response = route53.change_resource_record_sets(
+            HostedZoneId=hosted_zone_id,
+            ChangeBatch={
+                'Comment': 'Create alias record for ALB',
+                'Changes': [
+                    {
+                        'Action': 'CREATE',
+                        'ResourceRecordSet': {
+                            'Name': domain_name,
+                            'Type': 'A',
+                            'AliasTarget': {
+                                'HostedZoneId': alb_hosted_zone_id,
+                                'DNSName': alb_dns_name,
+                                'EvaluateTargetHealth': False
+                            }
+                        }
+                    }
+                ]
+            }
+        )
+        print(f"Route 53 record created: {response}")
+
+    create_route53_record()
+
+create_alb()
 # Make sure everything is working and then write a function that tears is all down
 # Work on type checking since a lot of values are passed into functions there can be confusion on whether a value is suppose to be a string, number, or array
