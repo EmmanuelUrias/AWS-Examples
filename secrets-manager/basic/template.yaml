@@ -3,7 +3,7 @@ Resources:
   MySecret:
     Type: 'AWS::SecretsManager::Secret'
     Properties:
-      Name: MySecretForAppA
+      Name: MySecret
       GenerateSecretString:
         SecretStringTemplate: '{"username": "test-user"}'
         GenerateStringKey: "password"
@@ -11,5 +11,9 @@ Resources:
         ExcludeCharacters: '"@/\'
       Tags:
         -
-          Key: AppName
-          Value: AppA
+          Key: SecretFor
+          Value: Demo
+  MySecretProvided:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      SecretString: "Testing123456!"
