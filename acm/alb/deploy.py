@@ -153,8 +153,8 @@ def create_instances():
     return instance_ids
 
 
-# alb_info = create_instances() => Already deployed
-alb_info = ['i-0092ceda95d52c9a8', 'i-0e76a2040fb05eaa5']
+alb_info = create_instances()
+# alb_info = ['i-0092ceda95d52c9a8', 'i-0e76a2040fb05eaa5']
 
 def create_alb(alb_info=alb_info):
     instance_ids = alb_info
@@ -168,41 +168,41 @@ def create_alb(alb_info=alb_info):
         print(f"Using Instance ID: {instance_ids[0]} and Security Group ID: {security_group_id} for ALB creation.")
         
         # Create ALB here using the instance_ids and sg_id
-        # alb = elbv2.create_load_balancer(
-        #     Name='my-load-balancer',
-        #     Subnets=[subnet_1, subnet_2],
-        #     SecurityGroups=[security_group_id],
-        #     Scheme='internet-facing',
-        #     Type='application',
-        #     IpAddressType='ipv4'
-        # )
+        alb = elbv2.create_load_balancer(
+            Name='my-load-balancer',
+            Subnets=[subnet_1, subnet_2],
+            SecurityGroups=[security_group_id],
+            Scheme='internet-facing',
+            Type='application',
+            IpAddressType='ipv4'
+        )
         
-        #alb_arn = alb['LoadBalancers'][0]['LoadBalancerArn']
-        alb_arn = 'arn:aws:elasticloadbalancing:us-east-1:099001967703:loadbalancer/app/my-load-balancer/6ddd11a20a01eb19'
+        alb_arn = alb['LoadBalancers'][0]['LoadBalancerArn']
+        # alb_arn = 'arn:aws:elasticloadbalancing:us-east-1:099001967703:loadbalancer/app/my-load-balancer/6ddd11a20a01eb19'
         vpc_id = get_vpc_id()
 
-        # target_group = elbv2.create_target_group(
-        #     Name='load-balancer-target-group',
-        #     Protocol='HTTP',
-        #     Port=80,
-        #     HealthCheckEnabled=True,
-        #     HealthCheckPath="/",
-        #     HealthCheckIntervalSeconds=10,
-        #     HealthCheckTimeoutSeconds=5,
-        #     HealthyThresholdCount=2,
-        #     UnhealthyThresholdCount=2,
-        #     VpcId=vpc_id,
-        #     TargetType='instance'
-        # )
+        target_group = elbv2.create_target_group(
+            Name='load-balancer-target-group',
+            Protocol='HTTP',
+            Port=80,
+            HealthCheckEnabled=True,
+            HealthCheckPath="/",
+            HealthCheckIntervalSeconds=10,
+            HealthCheckTimeoutSeconds=5,
+            HealthyThresholdCount=2,
+            UnhealthyThresholdCount=2,
+            VpcId=vpc_id,
+            TargetType='instance'
+        )
 
-        # target_group_arn = target_group['TargetGroups'][0]['TargetGroupArn']
-        target_group_arn = 'arn:aws:elasticloadbalancing:us-east-1:099001967703:targetgroup/load-balancer-target-group/e4513fb7b8d1832b'
+        target_group_arn = target_group['TargetGroups'][0]['TargetGroupArn']
+        # target_group_arn = 'arn:aws:elasticloadbalancing:us-east-1:099001967703:targetgroup/load-balancer-target-group/e4513fb7b8d1832b'
 
-        # # Register targets
-        # elbv2.register_targets(
-        #     TargetGroupArn=target_group_arn,
-        #     Targets=[{'Id': instance_id, 'Port': 80} for instance_id in instance_ids]
-        # )
+        # Register targets
+        elbv2.register_targets(
+            TargetGroupArn=target_group_arn,
+            Targets=[{'Id': instance_id, 'Port': 80} for instance_id in instance_ids]
+        )
 
         domain_name = 'quiet-time-assistant.com'  # Replace with your domain name
         # certificate_arn = request_certificate(domain_name)
