@@ -1,5 +1,82 @@
 AWSTemplateFormatVersion: "2010-09-09"
+Description: Webserver RDS Postgres Instance with Secrets Manager
+Parameters:
+  VpcId:
+    Type: String
+  BackupRetentionPeriod:
+    Type: Number
+    Default: 0
+  InstanceClass:
+    Type: String
+    Default: db.t3.micro
+  EngineVersion:
+    Type: String
+    #  DB Proxy only supports very specific versions of Postgres
+    #  https://stackoverflow.com/questions/63084648/which-rds-db-instances-are-supported-for-db-proxy
+    Default: '16.4'
+  PubliclyAccessible:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Default: false
+  DeletionProtection:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Default: false
+  RdsDatabaseName:
+    Type: String
+    Default: "mydatabase"
+  RdsPort:
+    Type: Number
+    Default: 5432
+  Subnets:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Description: A list of subnets for the Auto Scaling group
+
 Resources:
+  DBInstanceSG:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Sub 'Security group for RDS Instance'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref RdsPort
+          ToPort: !Ref RdsPort
+          CidrIp: 0.0.0.0/0
+      VpcId: !Ref VpcId
+
+  DBSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: 'My DB Subnet Group'
+      SubnetIds: !Ref Subnets
+
+  DBInstance:
+    Type: 'AWS::RDS::DBInstance'
+    DeletionPolicy: 'Delete'
+    UpdateReplacePolicy: 'Delete'
+    Properties:
+      MasterUsername: !GetAtt FetchSecret.username
+      MasterPassword: !GetAtt FetchSecret.passeord
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      AllocatedStorage: '20'
+      AllowMajorVersionUpgrade: true
+      AutoMinorVersionUpgrade: true
+      Port: !Ref RdsPort
+      EnableIAMDatabaseAuthentication: false
+      BackupRetentionPeriod: !Ref BackupRetentionPeriod
+      DBInstanceClass: !Ref InstanceClass
+      DBName: !Ref RdsDatabaseName
+      Engine: postgres
+      DeletionProtection: !Ref DeletionProtection
+      EngineVersion: !Ref EngineVersion
+      PubliclyAccessible: !Ref PubliclyAccessible
+      VPCSecurityGroups:
+        - !GetAtt DBInstanceSG.GroupId
+
   MySecret:
     Type: 'AWS::SecretsManager::Secret'
     Properties:
@@ -13,7 +90,81 @@ Resources:
         -
           Key: SecretFor
           Value: Demo
+
   DBInstanceSecretAttachment:
     Type: 'AWS::SecretsManager::SecretTargetAttachment'
     Properties:
-      SecretId: !Ref 
+      SecretId: !Ref MySecret
+      TargetId: !Ref DBInstance
+      TargetType: 'AWS::RDS::DBInstance'
+
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'SecretsManagerAccessPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'secretsmanager:GetSecretValue'
+                Resource: '*'
+        - PolicyName: 'LambdaBasicExecution'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+
+  FetchSecretFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.9
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+
+          def handler(event, context):
+              secret_name = event['ResourceProperties']['SecretName']
+              client = boto3.client('secretsmanager')
+              get_secret_value_response = client.get_secret_value(
+                  SecretId=secret_name
+              )
+              secret = json.loads(get_secret_value_response['SecretString'])
+              return {
+                  'username': secret['username'],
+                  'password': secret['password']
+              }
+
+  FetchSecret:
+    Type: Custom::FetchSecret
+    Properties:
+      ServiceToken: !GetAtt FetchSecretFunction.Arn
+      SecretName: !Ref MySecret
+
+Outputs:
+  StackName:
+    Value: !Ref AWS::StackName
+  RdsPort:
+    Value: !Ref RdsPort
+    Export:
+      Name: !Sub ${AWS::StackName}RdsPort
+  RdsDatabaseName:
+    Value: !Ref RdsDatabaseName
+    Export:
+      Name: !Sub ${AWS::StackName}RdsDatabaseName

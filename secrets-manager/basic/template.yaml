@@ -1,4 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Password:
+    Type: String
+    NoEcho: true # Hides the password from being visible in the hard code
 Resources:
   MySecret:
     Type: 'AWS::SecretsManager::Secret'
@@ -16,4 +20,4 @@ Resources:
   MySecretProvided:
     Type: 'AWS::SecretsManager::Secret'
     Properties:
-      SecretString: "Testing123456!"
+      SecretString: !Ref Password
