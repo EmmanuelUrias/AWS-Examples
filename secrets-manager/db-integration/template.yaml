@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: "2010-09-09"
+AWSTemplateFormatVersion: '2010-09-09'
 Description: Webserver RDS Postgres Instance with Secrets Manager
 Parameters:
   VpcId:
@@ -28,19 +28,19 @@ Parameters:
     Default: false
   RdsDatabaseName:
     Type: String
-    Default: "mydatabase"
+    Default: mydatabase
   RdsPort:
     Type: Number
     Default: 5432
   Subnets:
-    Type: 'List<AWS::EC2::Subnet::Id>'
+    Type: List<AWS::EC2::Subnet::Id>
     Description: A list of subnets for the Auto Scaling group
 
 Resources:
   DBInstanceSG:
-    Type: 'AWS::EC2::SecurityGroup'
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub 'Security group for RDS Instance'
+      GroupDescription: !Sub Security group for RDS Instance
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: !Ref RdsPort
@@ -49,15 +49,15 @@ Resources:
       VpcId: !Ref VpcId
 
   DBSubnetGroup:
-    Type: 'AWS::RDS::DBSubnetGroup'
+    Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: 'My DB Subnet Group'
+      DBSubnetGroupDescription: My DB Subnet Group
       SubnetIds: !Ref Subnets
 
   DBInstance:
-    Type: 'AWS::RDS::DBInstance'
-    DeletionPolicy: 'Delete'
-    UpdateReplacePolicy: 'Delete'
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       MasterUsername: !GetAtt FetchSecret.username
       MasterPassword: !GetAtt FetchSecret.passeord
@@ -78,54 +78,53 @@ Resources:
         - !GetAtt DBInstanceSG.GroupId
 
   MySecret:
-    Type: 'AWS::SecretsManager::Secret'
+    Type: AWS::SecretsManager::Secret
     Properties:
       Name: MySecret
       GenerateSecretString:
         SecretStringTemplate: '{"username": "test-user"}'
-        GenerateStringKey: "password"
+        GenerateStringKey: password
         PasswordLength: 30
         ExcludeCharacters: '"@/\'
       Tags:
-        -
-          Key: SecretFor
+        - Key: SecretFor
           Value: Demo
 
   DBInstanceSecretAttachment:
-    Type: 'AWS::SecretsManager::SecretTargetAttachment'
+    Type: AWS::SecretsManager::SecretTargetAttachment
     Properties:
       SecretId: !Ref MySecret
       TargetId: !Ref DBInstance
-      TargetType: 'AWS::RDS::DBInstance'
+      TargetType: AWS::RDS::DBInstance
 
   LambdaExecutionRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: 'Allow'
+          - Effect: Allow
             Principal:
-              Service: 'lambda.amazonaws.com'
-            Action: 'sts:AssumeRole'
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
       Policies:
-        - PolicyName: 'SecretsManagerAccessPolicy'
+        - PolicyName: SecretsManagerAccessPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: 'Allow'
+              - Effect: Allow
                 Action:
-                  - 'secretsmanager:GetSecretValue'
+                  - secretsmanager:GetSecretValue
                 Resource: '*'
-        - PolicyName: 'LambdaBasicExecution'
+        - PolicyName: LambdaBasicExecution
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Effect: 'Allow'
+              - Effect: Allow
                 Action:
-                  - 'logs:CreateLogGroup'
-                  - 'logs:CreateLogStream'
-                  - 'logs:PutLogEvents'
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
                 Resource: '*'
 
   FetchSecretFunction:
@@ -138,18 +137,22 @@ Resources:
         ZipFile: |
           import boto3
           import json
-
+          import cfnresponse
           def handler(event, context):
-              secret_name = event['ResourceProperties']['SecretName']
               client = boto3.client('secretsmanager')
-              get_secret_value_response = client.get_secret_value(
-                  SecretId=secret_name
-              )
-              secret = json.loads(get_secret_value_response['SecretString'])
-              return {
-                  'username': secret['username'],
-                  'password': secret['password']
-              }
+              response_data = {}
+              try:
+                  secret_name = event['ResourceProperties']['SecretName']
+                  get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+                  secret = json.loads(get_secret_value_response['SecretString'])
+                  response_data['username'] = secret['username']
+                  response_data['password'] = secret['password']
+                  # Send SUCCESS response back to CloudFormation
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+              except Exception as e:
+                  print(f"Error fetching secret: {str(e)}")
+                  # Send FAILED response back to CloudFormation
+                  cfnresponse.send(event, context, cfnresponse.FAILED, response_data)
 
   FetchSecret:
     Type: Custom::FetchSecret
