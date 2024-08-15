@@ -252,5 +252,6 @@ def create_alb(alb_info=alb_info):
     create_route53_record()
 
 create_alb()
+
 # Make sure everything is working and then write a function that tears is all down
 # Work on type checking since a lot of values are passed into functions there can be confusion on whether a value is suppose to be a string, number, or array
