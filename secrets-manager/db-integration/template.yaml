@@ -60,7 +60,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       MasterUsername: !GetAtt FetchSecret.username
-      MasterPassword: !GetAtt FetchSecret.passeord
+      MasterPassword: !GetAtt FetchSecret.password
       DBSubnetGroupName: !Ref DBSubnetGroup
       AllocatedStorage: '20'
       AllowMajorVersionUpgrade: true
