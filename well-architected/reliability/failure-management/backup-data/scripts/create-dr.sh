@@ -13,7 +13,7 @@
 # permissions and limitations under the License.
 
 # Run this before anything else
-# aws s3 mb s3://template-bucket-443
+# aws s3 mb s3://template-bucket-444
 
 templatebucket=$1
 templateprefix=$2
