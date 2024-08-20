@@ -1,0 +1,1747 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Creates the state machine to deploy the environment for the reliability lab
+Parameters:
+  LambdaFunctionsBucket:
+    Description: Bucket that the lambda source is contained in (case sensitive)
+    Default: aws-well-architected-labs-ohio
+    Type: String
+  VPCLambdaKey:
+    Description: Object Key of the Lambda Function that will deploy the VPC (case sensitive)
+    Default: Reliability/VPCLambda_python3.12.zip
+    Type: String
+  WaitForStackLambdaKey:
+    Description: Object Key of the Lambda Function that will wait for a stack for up to 5 min (case sensitive)
+    Default: Reliability/WaitForStack_python3.12.zip
+    Type: String
+  RDSLambdaKey:
+    Description: Object Key of the Lambda Function that will deploy a single-AZ RDS in the VPC (case sensitive)
+    Default: Reliability/RDSLambda_python3.12.zip
+    Type: String
+  MultiAZDBLambdaKey:
+    Description: Object Key of the Lambda Function that will update the RDS to Multi-AZ (case sensitive)
+    Default: Reliability/MultiAZDBLambda_python3.12.zip
+    Type: String
+  WebAppLambdaKey:
+    Description: Object Key of the Lambda Function that will deploy an auto scaling group of the web application in the VPC (case sensitive)
+    Default: Reliability/WebAppLambda_python3.12.zip
+    Type: String
+  RDSRRLambdaKey:
+    Description: Object Key of the Lambda Function that will deploy a RDS Read Replica in a VPC (case sensitive)
+    Default: Reliability/RDSReadReplicaLambda_python3.12.zip
+    Type: String
+  DMSLambdaKey:
+    Description: Object Key of the Lambda Function that will deploy a Database Migration Service in a VPC (case sensitive)
+    Default: Reliability/DMSLambda_python3.12.zip
+    Type: String
+  CreateTheRDSServiceRole:
+    Description: Should the automation create the RDS ServiceLinkedRole?
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+  CreateTheELBServiceRole:
+    Description: Should the automation create the ELB ServiceLinkedRole?
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+  CreateTheAutoScalingServiceRole:
+    Description: Should the automation create the Auto Scaling ServiceLinkedRole?
+    Type: String
+    AllowedValues:
+      - "true"
+      - "false"
+    Default: "true"
+Conditions:
+  CreateRDSServiceRole:
+    Fn::Equals:
+      - Ref: CreateTheRDSServiceRole
+      - "true"
+  CreateELBServiceRole:
+    Fn::Equals:
+      - Ref: CreateTheELBServiceRole
+      - "true"
+  CreateAutoScalingServiceRole:
+    Fn::Equals:
+      - Ref: CreateTheAutoScalingServiceRole
+      - "true"
+Resources:
+  VPCLambdaRole:
+    Metadata:
+      License: 'MIT No Attribution:  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so.  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.'
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: VPCWorkshopRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CreateVPC
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStacks
+                  - ec2:AllocateAddress
+                  - ec2:AttachInternetGateway
+                  - ec2:AssociateRouteTable
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:CreateInternetGateway
+                  - ec2:CreateNatGateway
+                  - ec2:CreateRoute
+                  - ec2:CreateRouteTable
+                  - ec2:CreateSecurityGroup
+                  - ec2:CreateSubnet
+                  - ec2:CreateTags
+                  - ec2:CreateVpc
+                  - ec2:DescribeAddresses
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeInternetGateways
+                  - ec2:DescribeNatGateways
+                  - ec2:DescribeRoutes
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:ModifyVpcAttribute
+                  - ec2:DeleteInternetGateway
+                  - ec2:releaseAddress
+                  - ec2:DeleteVpc
+                  - ec2:DeleteNetworkInterface
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeExportTasks
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:DescribeMetricFilters
+                  - logs:ListTagsLogGroup
+                  - logs:PutDestinationPolicy
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - logs:TagLogGroup
+                  - ssm:PutParameter
+                  - ssm:GetParameters
+                  - kms:CreateAlias
+                  - kms:CreateKey
+                  - kms:ListKeys
+                  - kms:ListAliases
+                  - kms:Encrypt
+                  - kms:TagResource
+                  - iam:AddRoleToInstanceProfile
+                  - iam:AttachRolePolicy
+                  - iam:CreateInstanceProfile
+                  - iam:CreateRole
+                  - iam:DescribeInstanceProfiles
+                  - iam:DescribeRoles
+                  - iam:PassRole
+                  - iam:GetRole
+                  - iam:TagRole
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - lambda:CreateFunction
+                  - lambda:InvokeFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:GetFunction
+                  - lambda:TagResource
+                Resource: '*'
+  VPCLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function that will deploy a VPC in a region with a workshop tag
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key:
+          Ref: VPCLambdaKey
+      FunctionName: DeployVPC
+      Handler: deploy_vpc_lambda.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - VPCLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "120"
+  WaitForStackLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: WaitForStack
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeExportTasks
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:DescribeMetricFilters
+                  - logs:ListTagsLogGroup
+                  - logs:PutDestinationPolicy
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - logs:TagLogGroup
+                Resource: '*'
+  WaitForStackLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function that will check the status of the stack and wait for up to 5 min; will return current status if time is about to expire
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key:
+          Ref: WaitForStackLambdaKey
+      FunctionName: WaitForStack
+      Handler: wait_for_stack_lambda.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - WaitForStackLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "600"
+  RDSServiceRole:
+    Type: AWS::IAM::ServiceLinkedRole
+    Condition: CreateRDSServiceRole
+    Properties:
+      AWSServiceName: rds.amazonaws.com
+      Description: This should allow an RDS instance to be created by this account
+  ELBServiceRole:
+    Type: AWS::IAM::ServiceLinkedRole
+    Condition: CreateELBServiceRole
+    Properties:
+      AWSServiceName: elasticloadbalancing.amazonaws.com
+      Description: This should allow an ELB to be created by this account
+  AutoScalingServiceRole:
+    Type: AWS::IAM::ServiceLinkedRole
+    Condition: CreateAutoScalingServiceRole
+    Properties:
+      AWSServiceName: autoscaling.amazonaws.com
+      Description: This should allow Auto Scaling to be created by this account
+  RDSLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: RDSWorkshopRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CreateRDS
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:UpdateStack
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeAccountAttributes
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - rds:CreateDBInstance
+                  - rds:CreateDBSubnetGroup
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBSubnetGroups
+                  - rds:ListTagsForResource
+                  - rds:AddTagsToResource
+                  - rds:RemoveTagsFromResource
+                  - rds:ModifyDBInstance
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeExportTasks
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:DescribeMetricFilters
+                  - logs:ListTagsLogGroup
+                  - logs:PutDestinationPolicy
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - logs:TagLogGroup
+                  - ssm:GetParameters
+                Resource: '*'
+              - Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: arn:aws:iam::*:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS
+                Condition:
+                  StringLike:
+                    iam:AWSServiceName: rds.amazonaws.com
+  RDSLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function that will deploy an RDS single-AZ in a VPC in a region with a workshop tag
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key:
+          Ref: RDSLambdaKey
+      FunctionName: DeployRDS
+      Handler: deploy_rds_lambda.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - RDSLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "120"
+  MultiAZDBLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function that will update the RDS to Multi-AZ
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key:
+          Ref: MultiAZDBLambdaKey
+      FunctionName: UpdateMultiAZDB
+      Handler: update_multi_az_lambda.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - RDSLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "630"
+  WebAppLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: WebAppLambdaRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchSyntheticsFullAccess
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CreateWebApp
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - autoscaling:CreateAutoScalingGroup
+                  - autoscaling:CreateLaunchConfiguration
+                  - autoscaling:CreateOrUpdateTags
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:DescribeLaunchConfigurations
+                  - autoscaling:DescribeScalingActivities
+                  - autoscaling:UpdateAutoScalingGroup
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStacks
+                  - ec2:CreateNetworkInterface
+                  - ec2:CreateTags
+                  - ec2:DescribeAccountAttributes
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeInternetGateways
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:RunInstances
+                  - ec2:DescribeImages
+                  - iam:AddRoleToInstanceProfile
+                  - iam:AttachRolePolicy
+                  - iam:CreateInstanceProfile
+                  - iam:CreateRole
+                  - iam:PassRole
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:CreatePolicy
+                  - iam:GetRole
+                  - iam:TagRole
+                  - elasticloadbalancing:AddTags
+                  - elasticloadbalancing:RemoveTags
+                  - elasticloadbalancing:CreateListener
+                  - elasticloadbalancing:CreateLoadBalancer
+                  - elasticloadbalancing:CreateTargetGroup
+                  - elasticloadbalancing:DescribeListeners
+                  - elasticloadbalancing:DescribeLoadBalancers
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:RegisterTargets
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeExportTasks
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:DescribeMetricFilters
+                  - logs:ListTagsLogGroup
+                  - logs:PutDestinationPolicy
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - logs:TagLogGroup
+                  - ssm:GetParameter
+                  - s3:CreateBucket
+                  - s3:PutBucketTagging
+                  - synthetics:CreateCanary
+                Resource: '*'
+        - PolicyName: Chaos-SSM
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:DescribeAssociation
+                  - ssm:GetDeployablePatchSnapshotForInstance
+                  - ssm:GetDocument
+                  - ssm:DescribeDocument
+                  - ssm:GetManifest
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:ListAssociations
+                  - ssm:ListInstanceAssociations
+                  - ssm:PutInventory
+                  - ssm:PutComplianceItems
+                  - ssm:PutConfigurePackageResult
+                  - ssm:UpdateAssociationStatus
+                  - ssm:UpdateInstanceAssociationStatus
+                  - ssm:UpdateInstanceInformation
+                Resource: '*'
+                Condition:
+                  StringLike:
+                    ssm:resourceTag/SSMTag: chaos-ready
+              - Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2messages:AcknowledgeMessage
+                  - ec2messages:DeleteMessage
+                  - ec2messages:FailMessage
+                  - ec2messages:GetEndpoint
+                  - ec2messages:GetMessages
+                  - ec2messages:SendReply
+                Resource: '*'
+  WebAppLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function that will deploy an auto scaled web application in 2 AZs in a VPC in a region with a workshop tag
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key:
+          Ref: WebAppLambdaKey
+      FunctionName: DeployWebApp
+      Handler: deploy_web_lambda.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - WebAppLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "120"
+  RDSRRLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: RDSRRLambdaRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CreateRDSRR
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStacks
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeAccountAttributes
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - rds:CreateDBInstanceReadReplica
+                  - rds:CreateDBSubnetGroup
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBSubnetGroups
+                  - rds:ListTagsForResource
+                  - rds:ModifyDBInstance
+                  - rds:AddTagsToResource
+                  - rds:RemoveTagsFromResource
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeExportTasks
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:DescribeMetricFilters
+                  - logs:ListTagsLogGroup
+                  - logs:PutDestinationPolicy
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - logs:TagLogGroup
+                Resource: '*'
+              - Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: arn:aws:iam::*:role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS
+                Condition:
+                  StringLike:
+                    iam:AWSServiceName: rds.amazonaws.com
+  RDSRRLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function that will deploy an RDS Read Replica in a VPC in a region with the source in a second region with a workshop tag
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key:
+          Ref: RDSRRLambdaKey
+      FunctionName: DeployReadReplica
+      Handler: deploy_read_replica_lambda.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - RDSRRLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "120"
+  DMSLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DMSLambdaRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CreateDMS
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStacks
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeAccountAttributes
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeInternetGateways
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVPCs
+                  - ec2:DeleteNetworkInterface
+                  - ec2:ModifyNetworkInterfaceAttribute
+                  - dms:AddTagsToResource
+                  - dms:CreateEndpoint
+                  - dms:CreateReplicationInstance
+                  - dms:CreateReplicationSubnetGroup
+                  - dms:CreateReplicationTask
+                  - dms:DescribeAttributes
+                  - dms:DescribeEndpointTypes
+                  - dms:DescribeEndpoints
+                  - dms:DescribeEventCategories
+                  - dms:DescribeEventSubscriptions
+                  - dms:DescribeEvents
+                  - dms:DescribeOrderableReplicationInstances
+                  - dms:DescribeRefreshSchemaStatus
+                  - dms:DescribeReplicationInstances
+                  - dms:DescribeReplicationSubnetGroups
+                  - dms:DescribeReplicationTasks
+                  - dms:DescribeSchemas
+                  - dms:DescribeTableStatistics
+                  - dms:ModifyEndpoint
+                  - dms:ModifyReplicationInstance
+                  - dms:ModifyReplicationTask
+                  - dms:StartReplicationTask
+                  - dms:TestConnection
+                  - ssm:GetParameter
+                  - kms:Decrypt
+                  - iam:AttachRolePolicy
+                  - iam:CreateRole
+                  - iam:GetRole
+                  - iam:TagRole
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRolePolicies
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBSubnetGroups
+                  - rds:ListTagsForResource
+                  - rds:ModifyDBInstance
+                  - rds:AddTagsToResource
+                  - rds:RemoveTagsFromResource
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeExportTasks
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:DescribeMetricFilters
+                  - logs:ListTagsLogGroup
+                  - logs:PutDestinationPolicy
+                  - logs:PutLogEvents
+                  - logs:PutRetentionPolicy
+                  - logs:TagLogGroup
+                Resource: '*'
+  DMSLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function that will deploy a DMS Multi-AZ in a VPC in a region with the source a read replica and the destination an RDS instance
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key:
+          Ref: DMSLambdaKey
+      FunctionName: DeployDMS
+      Handler: deploy_dms_lambda.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - DMSLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "120"
+  StateExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: StateExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                Fn::Sub: states.${AWS::Region}.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: StateMachineRole
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+  LambdaCustomResourceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LambdaCustomResourceRole-SecureSsmForRds
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: LambdaCustomResourcePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                Resource: '*'
+  DeploymentMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Join:
+          - ""
+          - - |
+              {
+            - |2
+                "Comment": "This will deploy the infrastructure for the workshop",
+            - |2
+                "StartAt": "DeployBothVPCs",
+            - |2
+                "States": {
+            - |2
+                  "DeployBothVPCs": {
+            - |2
+                    "Type": "Parallel",
+            - |2
+                    "End": true,
+            - |2
+                    "Branches": [
+            - |2
+                      {
+            - |2
+                        "Comment": "This will deploy the infrastructure for the workshop in region 1",
+            - |2
+                        "StartAt": "SetRegion1",
+            - |2
+                        "States": {
+            - |2
+                          "SetRegion1": {
+            - |2
+                            "Type": "Pass",
+            - |2
+                            "OutputPath":"$.region1",
+            - |2
+                            "Next": "DeployVPC1"
+            - |2
+                          },
+            - |2
+                          "DeployVPC1": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - VPCLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.vpc",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "WaitForVPCStack1"
+            - |2
+                          },
+            - |2
+                          "WaitForVPCStack1": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.vpc",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "VPCStackCompleteChoice1"
+            - |2
+                          },
+            - |2
+                          "VPCStackCompleteChoice1": {
+            - |2
+                            "Type": "Choice",
+            - |2
+                            "Choices": [
+            - |2
+                              {
+            - |2
+                                "Variable": "$.vpc.status",
+            - |2
+                                "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                "Next": "DeployRDS1"
+            - |2
+                              }
+            - |2
+                            ],
+            - |2
+                            "Default": "DeployFailedState1"
+            - |2
+                          },
+            - |2
+                          "DeployRDS1": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - RDSLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rds",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "WaitForRDSStack1"
+            - |2
+                          },
+            - |2
+                          "WaitForRDSStack1": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rds",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "CheckRDSStatus1"
+            - "            },              \n"
+            - |2
+                          "CheckRDSStatus1" : {
+            - |2
+                            "Type": "Choice",
+            - |2
+                            "Choices": [
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                "Next": "WebAppDeployAndRDSUpdate1"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "UPDATE_COMPLETE",
+            - |2
+                                "Next": "WebAppDeployAndRDSUpdate1"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "CREATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSStack1"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "UPDATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSStack1"
+            - |2
+                              }
+            - |2
+                            ],
+            - |2
+                            "Default": "DeployFailedState1"
+            - "            },            \n"
+            - |2
+                          "WebAppDeployAndRDSUpdate1": {
+            - |2
+                            "Type": "Parallel",
+            - |2
+                            "Next": "DeployRDSReadReplica1",
+            - |2
+                            "InputPath": "$",
+            - |2
+                            "OutputPath": "$[0]",
+            - |2
+                            "Branches": [
+            - |2
+                              {
+            - |2
+                                "Comment": "This will deploy the Web App",
+            - |2
+                                "StartAt": "DeployWebApp1",
+            - |2
+                                "States": {
+            - |2
+                                  "DeployWebApp1": {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - WebAppLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.web",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "Next": "WaitForWebApp1"
+            - |2
+                                  },
+            - |2
+                                  "WaitForWebApp1": {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.web",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "End": true
+            - |2
+                                  }
+            - |2
+                                }
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Comment": "This update the RDS to multi-az",
+            - |2
+                                "StartAt": "UpdateMultiAZDB1",
+            - |2
+                                "States": {
+            - |2
+                                  "UpdateMultiAZDB1" : {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - MultiAZDBLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.rds_update",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "Next": "WaitForMultiAZDB1"
+            - |2
+                                  },
+            - |2
+                                  "WaitForMultiAZDB1": {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.rds_update",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "Next": "CheckMultiAZDBStatus1"
+            - |2
+                                  },
+            - |2
+                                  "CheckMultiAZDBStatus1" : {
+            - |2
+                                    "Type": "Choice",
+            - |2
+                                    "Choices": [
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                        "Next": "MultiAZDBSucceeded1"
+            - |2
+                                      },
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "UPDATE_COMPLETE",
+            - |2
+                                        "Next": "MultiAZDBSucceeded1"
+            - |2
+                                      },
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "CREATE_IN_PROGRESS",
+            - |2
+                                        "Next": "WaitForMultiAZDB1"
+            - |2
+                                      },
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "UPDATE_IN_PROGRESS",
+            - |2
+                                        "Next": "WaitForMultiAZDB1"
+            - |2
+                                      }
+            - |2
+                                    ],
+            - |2
+                                    "Default": "MultiAZDBFailed1"
+            - |2
+                                  },
+            - |2
+                                  "MultiAZDBSucceeded1": {
+            - |2
+                                    "Type": "Succeed"
+            - |2
+                                  },
+            - |2
+                                  "MultiAZDBFailed1" : {
+            - |2
+                                    "Type": "Fail",
+            - |2
+                                    "Cause": "UpdateMultiAZDB1 failed",
+            - |2
+                                    "Error": "Update to RDS stack failed - see stack events for details"
+            - |2
+                                  }
+            - |2
+                                }
+            - |2
+                              }
+            - |2
+                            ]
+            - |2
+                          },
+            - |2
+                          "DeployRDSReadReplica1": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - RDSRRLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rr",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "WaitForRDSRRStack1"
+            - |2
+                          },
+            - |2
+                          "WaitForRDSRRStack1": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rr",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "CheckRDSRRStatus1"
+            - "            },                      \n"
+            - |2
+                          "CheckRDSRRStatus1" : {
+            - |2
+                            "Type": "Choice",
+            - |2
+                            "Choices": [
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                "Next": "DeployDMS"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "UPDATE_COMPLETE",
+            - |2
+                                "Next": "DeployDMS"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "CREATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSRRStack1"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "UPDATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSRRStack1"
+            - |2
+                              }
+            - |2
+                            ],
+            - |2
+                            "Default": "DeployFailedState1"
+            - "            },    \n"
+            - |2
+                          "DeployDMS": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - DMSLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.dms",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "WaitForDMS"
+            - |2
+                          },
+            - |2
+                          "WaitForDMS": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.dms",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "End": true
+            - |2
+                          },
+            - |2
+                          "DeployFailedState1": {
+            - |2
+                            "Type": "Fail",
+            - |2
+                            "Cause": "DeploymentFailed",
+            - |2
+                            "Error": "Something failed to deploy"
+            - |2
+                          }
+            - |2
+                        }
+            - |2
+                      },
+            - |2
+                      {
+            - |2
+                        "Comment": "This will deploy the infrastructure for the workshop in region 2",
+            - |2
+                        "StartAt": "SetRegion2",
+            - |2
+                        "States": {
+            - |2
+                          "SetRegion2": {
+            - |2
+                            "Type": "Pass",
+            - |2
+                            "OutputPath":"$.region2",
+            - |2
+                            "Next": "DeployVPC2"
+            - |2
+                          },
+            - |2
+                          "DeployVPC2": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - VPCLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.vpc",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "WaitForVPCStack2"
+            - |2
+                          },
+            - |2
+                          "WaitForVPCStack2": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.vpc",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "VPCStackCompleteChoice2"
+            - |2
+                          },
+            - |2
+                          "VPCStackCompleteChoice2": {
+            - |2
+                            "Type": "Choice",
+            - |2
+                            "Choices": [
+            - |2
+                              {
+            - |2
+                                "Variable": "$.vpc.status",
+            - |2
+                                "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                "Next": "DeployRDS2"
+            - |2
+                              }
+            - |2
+                            ],
+            - |2
+                            "Default": "DeployFailedState2"
+            - |2
+                          },
+            - |2
+                          "DeployRDS2": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - RDSLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rds",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "WaitForRDSStack2"
+            - |2
+                          },
+            - |2
+                          "WaitForRDSStack2": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rds",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "CheckRDSStatus2"
+            - "            },              \n"
+            - |2
+                          "CheckRDSStatus2" : {
+            - |2
+                            "Type": "Choice",
+            - |2
+                            "Choices": [
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                "Next": "WebAppDeployAndRDSUpdate2"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "UPDATE_COMPLETE",
+            - |2
+                                "Next": "WebAppDeployAndRDSUpdate2"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "CREATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSStack2"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rds.status",
+            - |2
+                                "StringEquals": "UPDATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSStack2"
+            - |2
+                              }
+            - |2
+                            ],
+            - |2
+                            "Default": "DeployFailedState2"
+            - |2
+                          },
+            - |2
+                          "WebAppDeployAndRDSUpdate2": {
+            - |2
+                            "Type": "Parallel",
+            - |2
+                            "Next": "DeployRDSReadReplica2",
+            - |2
+                            "InputPath": "$",
+            - |2
+                            "OutputPath": "$[0]",
+            - |2
+                            "Branches": [
+            - |2
+                              {
+            - |2
+                                "Comment": "This will deploy the Web App",
+            - |2
+                                "StartAt": "DeployWebApp2",
+            - |2
+                                "States": {
+            - |2
+                                  "DeployWebApp2": {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - WebAppLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.web",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "Next": "WaitForWebApp2"
+            - |2
+                                  },
+            - |2
+                                  "WaitForWebApp2": {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.web",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "End": true
+            - |2
+                                  }
+            - |2
+                                }
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Comment": "This update the RDS to multi-az",
+            - |2
+                                "StartAt": "UpdateMultiAZDB2",
+            - |2
+                                "States": {
+            - |2
+                                  "UpdateMultiAZDB2" : {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - MultiAZDBLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.rds_update",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "Next": "WaitForMultiAZDB2"
+            - |2
+                                  },
+            - |2
+                                  "WaitForMultiAZDB2": {
+            - |2
+                                    "Type": "Task",
+            - |2
+                                    "InputPath": "$",
+            - '                      "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                                    "ResultPath": "$.rds_update",
+            - |2
+                                    "OutputPath": "$",
+            - |2
+                                    "Next": "CheckMultiAZDBStatus2"
+            - |2
+                                  },
+            - |2
+                                  "CheckMultiAZDBStatus2" : {
+            - |2
+                                    "Type": "Choice",
+            - |2
+                                    "Choices": [
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                        "Next": "MultiAZDBSucceeded2"
+            - |2
+                                      },
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "UPDATE_COMPLETE",
+            - |2
+                                        "Next": "MultiAZDBSucceeded2"
+            - |2
+                                      },
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "CREATE_IN_PROGRESS",
+            - |2
+                                        "Next": "WaitForMultiAZDB2"
+            - |2
+                                      },
+            - |2
+                                      {
+            - |2
+                                        "Variable": "$.rds_update.status",
+            - |2
+                                        "StringEquals": "UPDATE_IN_PROGRESS",
+            - |2
+                                        "Next": "WaitForMultiAZDB2"
+            - |2
+                                      }
+            - |2
+                                    ],
+            - |2
+                                    "Default": "MultiAZDBFailed2"
+            - |2
+                                  },
+            - |2
+                                  "MultiAZDBSucceeded2": {
+            - |2
+                                    "Type": "Succeed"
+            - |2
+                                  },
+            - |2
+                                  "MultiAZDBFailed2" : {
+            - |2
+                                    "Type": "Fail",
+            - |2
+                                    "Cause": "UpdateMultiAZDB2 failed",
+            - |2
+                                    "Error": "Update to RDS stack failed - see stack events for details"
+            - |2
+                                  }
+            - |2
+                                }
+            - |2
+                              }
+            - |2
+                            ]
+            - |2
+                          },
+            - |2
+                          "DeployRDSReadReplica2": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - RDSRRLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rr",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "WaitForRDSRRStack2"
+            - |2
+                          },
+            - |2
+                          "WaitForRDSRRStack2": {
+            - |2
+                            "Type": "Task",
+            - |2
+                            "InputPath": "$",
+            - '              "Resource": "'
+            - Fn::GetAtt:
+                - WaitForStackLambdaFunction
+                - Arn
+            - |
+              ",
+            - |2
+                            "ResultPath": "$.rr",
+            - |2
+                            "OutputPath": "$",
+            - |2
+                            "Next": "CheckRDSRRStatus2"
+            - "            },                      \n"
+            - |2
+                          "CheckRDSRRStatus2" : {
+            - |2
+                            "Type": "Choice",
+            - |2
+                            "Choices": [
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "CREATE_COMPLETE",
+            - |2
+                                "Next": "RDSRRSucceeded"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "UPDATE_COMPLETE",
+            - |2
+                                "Next": "RDSRRSucceeded"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "CREATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSRRStack2"
+            - |2
+                              },
+            - |2
+                              {
+            - |2
+                                "Variable": "$.rr.status",
+            - |2
+                                "StringEquals": "UPDATE_IN_PROGRESS",
+            - |2
+                                "Next": "WaitForRDSRRStack2"
+            - |2
+                              }
+            - |2
+                            ],
+            - |2
+                            "Default": "DeployFailedState2"
+            - |2
+                          },
+            - |2
+                          "RDSRRSucceeded": {
+            - |2
+                            "Type": "Succeed"
+            - "            },             \n"
+            - |2
+                          "DeployFailedState2": {
+            - |2
+                            "Type": "Fail",
+            - |2
+                            "Cause": "DeploymentFailed",
+            - |2
+                            "Error": "Something failed to deploy"
+            - |2
+                          }
+            - |2
+                        }
+            - |2
+                      }
+            - |2
+                    ]
+            - |2
+                  }
+            - |2
+                }
+            - |
+              }
+      RoleArn:
+        Fn::GetAtt:
+          - StateExecutionRole
+          - Arn
+  StartStateMachine:
+    Type: Custom::StartStateMachine
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - StartStateMachineLambda
+          - Arn
+      StateMachineARN:
+        Ref: DeploymentMachine
+      MultiRegion: "true"
+  StartStateMachineLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Function for the custom resource that will start the execution of the state machine
+      Code:
+        S3Bucket:
+          Ref: LambdaFunctionsBucket
+        S3Key: Reliability/StartStateMachine.zip
+      FunctionName: StartStateMachine
+      Handler: StartStateMachine.lambda_handler
+      MemorySize: "128"
+      Role:
+        Fn::GetAtt:
+          - StartStateMachineLambdaRole
+          - Arn
+      Runtime: python3.12
+      Timeout: "30"
+  StartStateMachineLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: StartStateMachineLambdaRole
+      Description: Gives Lambda permission to start execution of state machine
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: StartStateMachine
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: VisualEditor0
+                Effect: Allow
+                Action:
+                  - iam:PassRole
+                  - states:StartExecution
+                Resource:
+                  - Ref: DeploymentMachine
+                  - Fn::GetAtt:
+                      - StateExecutionRole
+                      - Arn
+Outputs:
+  LambdaCustomResourceRoleArn:
+    Description: ARN of LambdaCustomResourceRole used to create custom resources in VPC stack
+    Value:
+      Fn::GetAtt:
+        - LambdaCustomResourceRole
+        - Arn
