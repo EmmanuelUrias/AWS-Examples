@@ -1,0 +1,156 @@
+#S3 location for athena cur query results temp storage
+#Don't miss '/' at the end of path 
+#Make sure your Lambda role has write/read permission to this path
+CUR_Output_Location: S3://bucket-8901/output/
+
+#CUR database name and table
+CUR_DB: "athena_cur_database"."athena_cur_table"
+
+#CUR file name with suffix '.xlsx', which is sent as attachment via SES
+CUR_Report_Name: cost_utilization_report.xlsx
+
+#SES configuration
+Region: us-east-1
+Subject: Cost and Utilization Report
+#i.e. 'john@example.com'
+Sender: 'emmanuelurias60-finops@icloud.com'
+#If there are mulitple recipients, seperate them by commas. i.e. 'john@example.com,alice@example.com'
+Recipient: 'emmanuelurias60@icloud.com'
+#Mail body
+Body_Text: "Hi,
+
+
+Please find your Cost Utilization Report attached:
+
+Cost_By_Service - Cost in the recent three month split by service (e.g. current month is Jul, the recent three months are Jul, Jun and May, same as below)
+
+Data_Cost_By_Service - Data cost in the recent three month split by service 
+
+MoM_Inter_AZ_DT(with graph) - Month over month inter-AZ data transfer usage and change in the recent three months
+
+MTD_S3_By_Bucket - MTD S3 cost and usage type split by bucket name 
+
+MTD_ELB_By_Name - MTD ELB cost split by ELB name and region
+
+MTD_CF_By_Distribution - MTD Cloudfront cost and usage split by distribution id 
+
+
+
+AWS Enterprise Support Team
+
+"
+
+
+
+#Note:
+#1. Customize query string list as required
+#2. The number of query strings is unfixed, you can add more query strings as you want
+#3. The key name of each string (e.g. 'Cost_By_Service') is tab name in combined xlsx file (sent via SES)
+#4. All variables(e.g. CUR_DB, CUR_YEAR) are replaced with real value in main function code automatically, and here're description:
+      # CUR_DB - Athena CUR table name
+      # CUR_YEAR - Current year 
+      # CUR_MONTH - Current month
+      # Since some queries require data in the recent three months, we need to get last month and previous last month dynamically,
+      # CUR_OR_LAST_YEAR - If current month is Jan, this variable equals to CUR_YEAR-1. Otherwise, it equals to CUR_YEAR
+      # LAST_MONTH - If current month is Jan, this variable equals to Dec. Otherwise, it equals to CUR_MONTH-1
+      # LAST_YEAR - If current month is Jan or Feb, this variable equals to CUR_YEAR-1.Otherwise, it equals to CUR_YEAR
+      # PRE_LAST_MONTH - If current month is Jan(or Feb), this variable equals to Nov(or Dec). Otherwise, t equals to CUR_MONTH-2
+
+Query_String_List:
+  - Cost_By_Service: SELECT year,
+            month(line_item_usage_start_date) month,
+            product_product_name AS "Product_Name",
+            sum("line_item_unblended_cost") AS "Cost($)"
+            FROM CUR_DB
+            WHERE (year='CUR_YEAR' AND month='CUR_MONTH') OR
+            (year='CUR_OR_LAST_YEAR' AND month='LAST_MONTH') OR 
+            (year='LAST_YEAR' AND month='PRE_LAST_MONTH') 
+            GROUP BY  1,2,3
+            ORDER BY  1,2,3
+  - Data_Cost_By_Service: SELECT year,
+            month(line_item_usage_start_date) month,
+            line_item_product_code,
+            line_item_usage_type,
+            product_from_location,
+            product_to_location,
+            sum(line_item_usage_amount)/1024 AS "TB's", sum(line_item_unblended_cost) AS "Cost($)"
+            FROM CUR_DB
+            WHERE line_item_usage_type LIKE '%Bytes%'
+            AND (line_item_usage_type LIKE '%In%'
+            OR line_item_usage_type LIKE '%Out%'
+            OR line_item_usage_type LIKE '%Regional%')
+            AND ((year='CUR_YEAR' AND month='CUR_MONTH') OR
+            (year='CUR_OR_LAST_YEAR' AND month='LAST_MONTH') OR 
+            (year='LAST_YEAR' AND month='PRE_LAST_MONTH'))
+            GROUP BY  1,2,3,4,5,6
+            ORDER BY  sum(line_item_unblended_cost) desc
+  - MoM_Inter_AZ_DT_Chart: SELECT *
+            , ("Usage_This_Month(GB)" - "Usage_Last_Month(GB)") as Diff_Usage_From_Last_Month,("Cost_This_Month($)" - "Cost_Last_Month($)") as Diff_Cost_From_Last_Month FROM (
+            SELECT
+            year
+            ,month(line_item_usage_start_date) month
+            ,sum(line_item_usage_amount) as "Usage_This_Month(GB)"
+            ,sum(line_item_unblended_cost)  as "Cost_This_Month($)"
+            ,lag(sum(line_item_usage_amount),1) over (order by year,month(line_item_usage_start_date)) as "Usage_Last_Month(GB)"
+            ,lag(sum(line_item_unblended_cost),1) over (order by year,month(line_item_usage_start_date)) as "Cost_Last_Month($)"
+            FROM
+            CUR_DB
+            WHERE
+            line_item_usage_type like '%-DataTransfer-Regional-Bytes%'  AND  
+            line_item_product_code = 'AmazonEC2'  AND
+            ((year='CUR_YEAR' AND month='CUR_MONTH') OR
+            (year='CUR_OR_LAST_YEAR' AND month='LAST_MONTH') OR 
+            (year='LAST_YEAR' AND month='PRE_LAST_MONTH'))
+            GROUP BY
+            1,2
+            ORDER BY
+            1,2)
+  - MTD_S3_By_Bucket: SELECT year,
+            month(line_item_usage_start_date) month,
+            line_item_usage_type,
+            line_item_resource_id AS "S3_Bucket",
+            sum(line_item_usage_amount) AS "Usage", sum(line_item_unblended_cost) AS "Cost($)"
+            FROM CUR_DB
+            WHERE product_product_name = 'Amazon Simple Storage Service'
+            AND year='CUR_YEAR' AND month='CUR_MONTH'
+            GROUP BY  1,2,3,4
+            ORDER BY  sum(line_item_unblended_cost) DESC 
+  - MTD_ELB_By_Name: SELECT year,
+            month(line_item_usage_start_date) month,
+            replace(split_part("line_item_resource_id",':',6),'loadbalancer/') AS "Load Balancer", 
+            split_part("line_item_resource_id",':',4) AS Region, sum("line_item_unblended_cost") AS "Cost($)" 
+            FROM CUR_DB
+            WHERE "line_item_resource_id" LIKE '%loadbalancer%'
+            AND year='CUR_YEAR' AND month='CUR_MONTH'
+            GROUP BY  1,2,3,4
+            ORDER BY  3 DESC 
+  - MTD_CF_By_Distribution: SELECT year,
+            month(line_item_usage_start_date) month,
+            line_item_usage_type,
+            line_item_resource_id AS distribution,
+            product_from_location,
+            sum(line_item_usage_amount)AS "Usage",
+            sum(line_item_unblended_cost) AS "Cost($)"
+            FROM CUR_DB
+            WHERE product_product_name = 'Amazon CloudFront'
+            AND year='CUR_YEAR' AND month='CUR_MONTH'
+            GROUP BY  1,2,3,4,5
+            ORDER BY  sum(line_item_unblended_cost) desc
+  - MTD_Inter_AZ_DT: SELECT
+            year
+            ,month(line_item_usage_start_date) month
+            ,line_item_product_code as Product_Name  
+            ,line_item_resource_id as Resource_Id 
+            ,line_item_usage_type as Usage_Type
+            ,sum(line_item_usage_amount) as "Inter_AZ_Data_Transfer(GB)"
+            ,sum(line_item_unblended_cost) as "Cost($)"
+            FROM
+            CUR_DB
+            WHERE
+            "line_item_usage_type" like '%Bytes%'
+            AND "line_item_usage_type" like '%Regional%'
+            AND year='CUR_YEAR' AND month='CUR_MONTH'
+            GROUP BY
+            1,2,3,4,5
+            ORDER BY
+            sum("line_item_unblended_cost") desc
