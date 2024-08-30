@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to deploy an EC2 instance with Amazon Linux 2023 and mount EFS automatically
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the VPC where the EC2 instance and EFS will be deployed.
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the subnet where the EC2 instance will be launched.
+
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The security group ID for the EC2 instance.
+
+  EfsFileSystemId:
+    Type: String
+    Description: The ID of the EFS file system to mount on the EC2 instance.
+
+  LatestAmiId:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+    Description: The latest Amazon Linux 2023 AMI ID
+
+Resources:
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore  # Provides SSM permissions
+        - arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess  # Optional: for read-only access to EC2 resources
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2InstanceRole
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: !Ref LatestAmiId
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref SubnetId
+          AssociatePublicIpAddress: true
+          GroupSet:
+            - Ref: SecurityGroupId
+          DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum install -y nfs-utils
+          mkdir -p /mnt/efs
+          mount -t nfs4 -o nfsvers=4.1 ${EfsFileSystemId}.efs.${AWS::Region}.amazonaws.com:/ /mnt/efs
+          echo "${EfsFileSystemId}.efs.${AWS::Region}.amazonaws.com:/ /mnt/efs nfs4 defaults,_netdev 0 0" >> /etc/fstab
+
+Outputs:
+  InstanceId:
+    Description: The ID of the EC2 instance
+    Value: !Ref EC2Instance
+
+  EFSFileSystemMountPoint:
+    Description: The mount point for the EFS file system
+    Value: /mnt/efs
+
