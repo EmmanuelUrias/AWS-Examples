@@ -1,9 +1,9 @@
 const express = require('express')
 const app = express()
-const cors = require('cors')
-const bodyParser = require('body-parser')
+//const cors = require('cors')
+//const bodyParser = require('body-parser')
 const path = require('path')
-const port = process.env.PORT
+const port = process.env.PORT || 3000
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '/index.html'))
