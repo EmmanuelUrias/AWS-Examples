@@ -27,3 +27,24 @@ psql study-sync < sql/schema.sql -h localhost -U postgres
 ```sh
 psql study-sync < sql/seed.sql -h localhost -U postgres
 ```
+
+### Manual Install if you don't have to do the virtual enviroment (optional)
+```sh
+pip install virtualenv
+virtualenv -p python3.11 ~/myenv
+source ~/myenv/bin/activate
+
+git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
+python ./aws-elastic-beanstalk-cli-setup/scripts/ebcli_installer.py
+echo 'export PATH="/home/gitpod/.ebcli-virtual-env/executables:$PATH"' >> ~/.bash_profile && source ~/.bash_profile
+```
+
+## EB initialization
+```sh
+eb init
+```
+
+## Set CodeSource
+```sh
+eb codesource
+```
