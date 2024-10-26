@@ -7,7 +7,7 @@ client = boto3.client('logs', region_name='us-east-1')
 
 # CloudWatch Logs group and stream details
 log_group_name = '/example/basic/app'
-log_stream_name = '1729887685'
+log_stream_name = '1729887885'
 
 # Load logs from a JSON file
 def load_logs_from_file(file_path):
