@@ -16,5 +16,3 @@ aws logs create-log-stream --log-group-name /example/basic/app --log-stream-name
 ```sh
 aws logs put-log-events --log-group-name /example/basic/app --log-stream-name 1729887685 --log-events file://events.json
 ```
-
-Comment: You need to create a py program that generates logs to send to the steam
